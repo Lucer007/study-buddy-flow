@@ -5,7 +5,7 @@ const AccountSetup = () => {
   const navigate = useNavigate();
 
   const handleContinue = () => {
-    navigate('/weekday-time');
+    navigate('/dashboard');
   };
 
   return (
