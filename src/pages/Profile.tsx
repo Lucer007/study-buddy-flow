@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Flame, Clock, BookOpen, Grid3X3, Film, BarChart3, Edit } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Flame, Clock, BookOpen, Users, Share2, Library, Trophy, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Profile {
   username: string;
@@ -20,14 +23,28 @@ interface Post {
   timelapse_url?: string;
   minutes_studied: number;
   created_at: string;
+  class_id?: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
 }
 
 const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [activeTab, setActiveTab] = useState<'posts' | 'timelapses' | 'stats'>('posts');
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [studyBuddiesCount, setStudyBuddiesCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const weeklyGoalHours = 10;
+  const weeklyStudiedHours = Math.floor((profile?.total_minutes || 0) / 60);
 
   useEffect(() => {
     loadProfile();
@@ -58,6 +75,36 @@ const Profile = () => {
       if (postsError) throw postsError;
       setPosts(postsData || []);
 
+      // Load classes
+      const { data: classesData, error: classesError } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('user_id', user.id);
+
+      if (classesError) throw classesError;
+      setClasses(classesData || []);
+
+      // Load study buddies count (friends)
+      const { data: friendsData, error: friendsError } = await supabase
+        .from('friendships')
+        .select('id')
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+
+      if (friendsError) throw friendsError;
+      setStudyBuddiesCount(friendsData?.length || 0);
+      setFollowingCount(friendsData?.length || 0);
+
+      // Calculate leaderboard rank
+      const { data: allProfiles, error: rankError } = await supabase
+        .from('profiles')
+        .select('user_id, total_minutes')
+        .order('total_minutes', { ascending: false });
+
+      if (!rankError && allProfiles) {
+        const rank = allProfiles.findIndex(p => p.user_id === user.id) + 1;
+        setLeaderboardRank(rank);
+      }
+
     } catch (error: any) {
       toast({
         title: "Failed to load profile",
@@ -87,147 +134,212 @@ const Profile = () => {
 
   if (!profile) return null;
 
+  const filteredPosts = selectedFilter === 'all' 
+    ? posts 
+    : posts.filter(post => post.class_id === selectedFilter);
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-hero border-b border-border/50">
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
-          {/* Profile Info */}
-          <div className="flex items-start gap-6">
-            {/* Avatar */}
-            <div className="relative">
-              <div className="w-28 h-28 rounded-full bg-gradient-primary p-1 glow-primary animate-float">
-                <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-5xl font-black">
-                  {profile.photo_url ? (
-                    <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    profile.display_name[0]
-                  )}
-                </div>
+    <div className="min-h-screen bg-background pb-20">
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+        
+        {/* 1. Profile Photo + Rank Badge */}
+        <div className="flex flex-col items-center space-y-3">
+          <div className="relative">
+            <div className="w-32 h-32 rounded-full bg-gradient-primary p-1 glow-primary animate-float">
+              <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-6xl font-black">
+                {profile.photo_url ? (
+                  <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  profile.display_name[0]
+                )}
               </div>
-              {profile.streak > 0 && (
-                <div className="absolute -bottom-2 -right-2 bg-primary rounded-full px-3 py-1 flex items-center gap-1 glow-primary">
-                  <Flame className="h-4 w-4 text-white" />
-                  <span className="text-white font-black">{profile.streak}</span>
-                </div>
-              )}
             </div>
-
-            {/* Info */}
-            <div className="flex-1 space-y-2">
-              <h1 className="text-3xl font-black text-foreground">{profile.display_name}</h1>
-              <p className="text-lg text-muted-foreground font-medium">@{profile.username}</p>
-              {profile.bio && (
-                <p className="text-foreground/80 font-medium">{profile.bio}</p>
-              )}
-            </div>
-
-            {/* Edit Button */}
-            <Button className="rounded-full hover-scale" variant="outline">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+            {leaderboardRank && leaderboardRank <= 3 && (
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-gradient-accent rounded-full px-4 py-1.5 flex items-center gap-2 glow-accent">
+                <Trophy className="h-4 w-4 text-accent-foreground" />
+                <span className="text-accent-foreground font-black text-sm">#{leaderboardRank}</span>
+              </div>
+            )}
           </div>
 
-          {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-card border-2 border-border rounded-3xl p-4 text-center hover-scale">
-              <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-primary mb-1">
-                {profile.streak}
-              </div>
-              <div className="text-sm text-muted-foreground font-bold flex items-center justify-center gap-1">
-                <Flame className="h-4 w-4 text-primary" />
-                Day Streak
+          {/* 2. Display Name */}
+          <h1 className="text-4xl font-black text-foreground text-center">{profile.display_name}</h1>
+        </div>
+
+        {/* 3. Streak Card */}
+        <div className="bg-gradient-primary rounded-3xl p-6 glow-primary hover-scale cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Flame className="h-10 w-10 text-white" />
+              <div>
+                <div className="text-3xl font-black text-white">{profile.streak}-Day Streak</div>
+                <div className="text-white/80 font-medium">Keep it going!</div>
               </div>
             </div>
+            <div className="text-6xl">🔥</div>
+          </div>
+        </div>
 
-            <div className="bg-card border-2 border-border rounded-3xl p-4 text-center hover-scale">
-              <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-secondary mb-1">
-                {formatTime(profile.total_minutes)}
-              </div>
-              <div className="text-sm text-muted-foreground font-bold flex items-center justify-center gap-1">
-                <Clock className="h-4 w-4 text-secondary" />
-                Total Time
+        {/* 4. Weekly Study Goal Progress */}
+        <div className="bg-card border-2 border-border rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="text-2xl">🎯</div>
+              <div>
+                <div className="text-lg font-black text-foreground">Weekly Goal</div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  {weeklyStudiedHours} / {weeklyGoalHours} hours
+                </div>
               </div>
             </div>
-
-            <div className="bg-card border-2 border-border rounded-3xl p-4 text-center hover-scale">
-              <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-accent mb-1">
-                {posts.length}
-              </div>
-              <div className="text-sm text-muted-foreground font-bold flex items-center justify-center gap-1">
-                <BookOpen className="h-4 w-4 text-accent" />
-                Sessions
+            <div className="text-right">
+              <div className="text-2xl font-black text-gradient-secondary">
+                {Math.round((weeklyStudiedHours / weeklyGoalHours) * 100)}%
               </div>
             </div>
           </div>
+          <Progress value={(weeklyStudiedHours / weeklyGoalHours) * 100} className="h-3" />
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-4xl mx-auto flex">
-          <button
-            onClick={() => setActiveTab('posts')}
-            className={`flex-1 py-4 font-bold transition-all ${
-              activeTab === 'posts'
-                ? 'text-primary border-b-4 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Grid3X3 className="h-5 w-5 mx-auto mb-1" />
-            Posts
-          </button>
-          <button
-            onClick={() => setActiveTab('timelapses')}
-            className={`flex-1 py-4 font-bold transition-all ${
-              activeTab === 'timelapses'
-                ? 'text-primary border-b-4 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Film className="h-5 w-5 mx-auto mb-1" />
-            Timelapses
-          </button>
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`flex-1 py-4 font-bold transition-all ${
-              activeTab === 'stats'
-                ? 'text-primary border-b-4 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <BarChart3 className="h-5 w-5 mx-auto mb-1" />
-            Stats
-          </button>
+        {/* 5. Study Activity Categories (Chips) */}
+        <div className="space-y-3">
+          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Study Type</div>
+          <div className="flex flex-wrap gap-2">
+            <Badge 
+              variant={selectedFilter === 'all' ? 'default' : 'outline'}
+              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
+              onClick={() => setSelectedFilter('all')}
+            >
+              📚 All
+            </Badge>
+            <Badge 
+              variant="outline"
+              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
+            >
+              📝 Homework
+            </Badge>
+            <Badge 
+              variant="outline"
+              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
+            >
+              💻 Coding
+            </Badge>
+            <Badge 
+              variant="outline"
+              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
+            >
+              📖 Reading
+            </Badge>
+            <Badge 
+              variant="outline"
+              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
+            >
+              🧠 Review
+            </Badge>
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-4xl mx-auto p-6">
-        {activeTab === 'posts' && (
-          posts.length === 0 ? (
-            <div className="text-center py-16 space-y-4">
+        {/* 6. Leaderboard Placement */}
+        {leaderboardRank && (
+          <div 
+            className="bg-card border-2 border-border rounded-3xl p-6 text-center hover-scale cursor-pointer"
+            onClick={() => navigate('/leaderboard')}
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <TrendingUp className="h-5 w-5 text-accent" />
+              <div className="text-2xl font-black text-gradient-accent">#{leaderboardRank} Among Friends</div>
+            </div>
+            <div className="text-sm text-muted-foreground font-medium">View Leaderboard →</div>
+          </div>
+        )}
+
+        {/* 7. Stats Row */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
+            <div className="text-3xl font-black text-gradient-primary mb-1">
+              {Math.floor(profile.total_minutes / 60)}h
+            </div>
+            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+              Hours Studied
+            </div>
+          </div>
+
+          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
+            <div className="text-3xl font-black text-gradient-secondary mb-1">
+              {studyBuddiesCount}
+            </div>
+            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+              Study Buddies
+            </div>
+          </div>
+
+          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
+            <div className="text-3xl font-black text-gradient-accent mb-1">
+              {followingCount}
+            </div>
+            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+              Following
+            </div>
+          </div>
+        </div>
+
+        {/* 8. Share Profile Button */}
+        <Button 
+          className="w-full rounded-full py-6 text-lg font-black hover-scale"
+          variant="outline"
+        >
+          <Share2 className="h-5 w-5 mr-2" />
+          Share Profile
+        </Button>
+
+        {/* 9. Study Library Box */}
+        <div className="bg-card border-2 border-border rounded-3xl p-6 hover-scale cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Library className="h-8 w-8 text-primary" />
+              <div>
+                <div className="text-xl font-black text-foreground">My Study Library</div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Your notes, assignments & AI guides
+                </div>
+              </div>
+            </div>
+            <div className="text-2xl">→</div>
+          </div>
+        </div>
+
+        {/* 10. Media Grid */}
+        <div className="space-y-4">
+          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Study Content</div>
+          {filteredPosts.length === 0 ? (
+            <div className="text-center py-16 space-y-4 bg-card border-2 border-border rounded-3xl">
               <BookOpen className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
               <p className="text-lg text-muted-foreground font-medium">No Nudge posts yet</p>
               <p className="text-sm text-muted-foreground">Complete a study session to post!</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {posts.map((post) => (
+              {filteredPosts.map((post) => (
                 <div
                   key={post.id}
-                  className="aspect-square bg-card border-2 border-border rounded-2xl overflow-hidden hover-scale cursor-pointer group"
+                  className="aspect-square bg-card border-2 border-border rounded-2xl overflow-hidden hover-scale cursor-pointer group relative"
                 >
                   {post.timelapse_url ? (
                     <div className="relative w-full h-full">
                       <video src={post.timelapse_url} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                        <Film className="h-8 w-8 text-white" />
+                        <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1 text-xs text-white font-bold">
+                          {Math.floor(post.minutes_studied)}m
+                        </div>
                       </div>
                     </div>
                   ) : post.photo_url ? (
-                    <img src={post.photo_url} alt="Nudge" className="w-full h-full object-cover" />
+                    <>
+                      <img src={post.photo_url} alt="Nudge" className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1 text-xs text-white font-bold">
+                        {Math.floor(post.minutes_studied)}m
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full bg-gradient-primary flex items-center justify-center">
                       <BookOpen className="h-12 w-12 text-white" />
@@ -236,49 +348,27 @@ const Profile = () => {
                 </div>
               ))}
             </div>
-          )
-        )}
+          )}
+        </div>
 
-        {activeTab === 'timelapses' && (
-          <div className="grid grid-cols-2 gap-4">
-            {posts.filter(p => p.timelapse_url).map((post) => (
-              <div
-                key={post.id}
-                className="aspect-video bg-card border-2 border-border rounded-3xl overflow-hidden hover-scale cursor-pointer group"
-              >
-                <video src={post.timelapse_url!} className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'stats' && (
-          <div className="space-y-6">
-            <div className="bg-card border-2 border-border rounded-3xl p-6">
-              <h3 className="text-2xl font-black text-foreground mb-4">Study Stats</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Longest Streak</span>
-                  <span className="text-2xl font-black text-gradient-primary">
-                    {profile.longest_streak} days 🔥
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Total Sessions</span>
-                  <span className="text-2xl font-black text-gradient-secondary">
-                    {posts.length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Total Study Time</span>
-                  <span className="text-2xl font-black text-gradient-accent">
-                    {formatTime(profile.total_minutes)}
-                  </span>
-                </div>
-              </div>
+        {/* 11. Footer - Current Classes ONLY */}
+        {classes.length > 0 && (
+          <div className="space-y-4 pt-8 border-t-2 border-border">
+            <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Current Classes</div>
+            <div className="flex flex-wrap gap-2">
+              {classes.map((cls) => (
+                <Badge 
+                  key={cls.id}
+                  variant="outline"
+                  className="rounded-full px-4 py-2 text-sm font-bold hover-scale cursor-pointer"
+                >
+                  📚 {cls.name}
+                </Badge>
+              ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
