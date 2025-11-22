@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Heart, MessageCircle, Send, Flame, MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { CreateDemoPosts } from '@/components/CreateDemoPosts';
 
 interface FeedPost {
   id: string;
@@ -209,8 +210,9 @@ const Feed = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-2xl mx-auto px-6 py-4">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-3xl font-black text-gradient-primary">Feed</h1>
+          <CreateDemoPosts />
         </div>
       </div>
 
