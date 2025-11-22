@@ -8,89 +8,90 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 10%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
-
-    --primary: 45 95% 55%;
-    --primary-foreground: 240 10% 10%;
-
-    --secondary: 280 60% 60%;
+    /* Vibrant, energetic dark theme - social media inspired */
+    --background: 250 100% 4%;
+    --foreground: 0 0% 98%;
+    
+    --card: 250 40% 8%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 250 40% 10%;
+    --popover-foreground: 0 0% 98%;
+    
+    /* Punchy pink primary - main brand color */
+    --primary: 340 100% 70%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 340 100% 85%;
+    
+    /* Electric purple secondary */
+    --secondary: 260 85% 65%;
     --secondary-foreground: 0 0% 100%;
-
-    --muted: 40 20% 96%;
-    --muted-foreground: 240 5% 45%;
-
-    --accent: 45 100% 70%;
-    --accent-foreground: 240 10% 10%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 40 15% 90%;
-    --input: 40 15% 90%;
-    --ring: 45 95% 55%;
-
-    --radius: 1rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Warm sunny yellow accent */
+    --accent: 45 98% 70%;
+    --accent-foreground: 250 100% 10%;
+    
+    --muted: 250 30% 15%;
+    --muted-foreground: 250 10% 60%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 250 30% 18%;
+    --input: 250 30% 18%;
+    --ring: 340 100% 70%;
+    
+    /* Social media-style gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(340 100% 70%), hsl(260 85% 65%));
+    --gradient-secondary: linear-gradient(135deg, hsl(260 85% 65%), hsl(45 98% 70%));
+    --gradient-accent: linear-gradient(135deg, hsl(45 98% 70%), hsl(340 100% 70%));
+    --gradient-hero: linear-gradient(180deg, hsl(340 100% 70% / 0.15), hsl(260 85% 65% / 0.05));
+    
+    /* Glows for that modern touch */
+    --glow-primary: 0 12px 48px hsla(340, 100%, 70%, 0.35);
+    --glow-secondary: 0 12px 48px hsla(260, 85%, 65%, 0.35);
+    --glow-accent: 0 12px 48px hsla(45, 98%, 70%, 0.35);
+    
+    --radius: 1.5rem;
+    
+    --sidebar-background: 250 40% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 340 100% 70%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 250 30% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 250 30% 18%;
+    --sidebar-ring: 340 100% 70%;
   }
 
   .dark {
-    --background: 240 15% 8%;
-    --foreground: 40 20% 95%;
-
-    --card: 240 12% 12%;
-    --card-foreground: 40 20% 95%;
-
-    --popover: 240 12% 12%;
-    --popover-foreground: 40 20% 95%;
-
-    --primary: 45 95% 60%;
-    --primary-foreground: 240 10% 10%;
-
-    --secondary: 280 55% 55%;
+    --background: 250 100% 4%;
+    --foreground: 0 0% 98%;
+    --card: 250 40% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 250 40% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 340 100% 70%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 85% 65%;
     --secondary-foreground: 0 0% 100%;
-
-    --muted: 240 10% 20%;
-    --muted-foreground: 40 10% 65%;
-
-    --accent: 45 90% 65%;
-    --accent-foreground: 240 10% 10%;
-
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 240 10% 20%;
-    --input: 240 10% 20%;
-    --ring: 45 95% 60%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --accent: 45 98% 70%;
+    --accent-foreground: 250 100% 10%;
+    --muted: 250 30% 15%;
+    --muted-foreground: 250 10% 60%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 250 30% 18%;
+    --input: 250 30% 18%;
+    --ring: 340 100% 70%;
+    --sidebar-background: 250 40% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 340 100% 70%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 250 30% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 250 30% 18%;
+    --sidebar-ring: 340 100% 70%;
   }
 }
 
@@ -100,6 +101,93 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-inter antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-poppins font-bold;
+  }
+}
+
+@layer utilities {
+  /* Text gradients for that pop */
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+  
+  .text-gradient-secondary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-secondary);
+  }
+  
+  /* Background gradients */
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+  
+  .bg-gradient-secondary {
+    background-image: var(--gradient-secondary);
+  }
+  
+  .bg-gradient-accent {
+    background-image: var(--gradient-accent);
+  }
+  
+  .bg-gradient-hero {
+    background-image: var(--gradient-hero);
+  }
+  
+  /* Glows for modern cards */
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+  
+  .glow-secondary {
+    box-shadow: var(--glow-secondary);
+  }
+  
+  .glow-accent {
+    box-shadow: var(--glow-accent);
+  }
+  
+  /* Fun animations */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: var(--glow-primary);
+    }
+    50% {
+      box-shadow: 0 12px 64px hsla(340, 100%, 70%, 0.5);
+    }
+  }
+  
+  /* Smooth scale on hover */
+  .hover-scale {
+    @apply transition-transform duration-200 ease-out;
+  }
+  
+  .hover-scale:hover {
+    @apply scale-[1.02];
+  }
+  
+  .hover-scale:active {
+    @apply scale-[0.98];
   }
 }
