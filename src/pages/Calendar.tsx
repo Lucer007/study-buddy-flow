@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
+import PinkyPromiseDialog from '@/components/PinkyPromiseDialog';
 
 interface StudyBlock {
   id: string;
@@ -18,16 +19,43 @@ interface StudyBlock {
   };
 }
 
+interface PinkyPromise {
+  id: string;
+  block_id: string;
+  status: string;
+}
+
 const CalendarPage = () => {
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([]);
+  const [pinkyPromises, setPinkyPromises] = useState<PinkyPromise[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [selectedBlock, setSelectedBlock] = useState<StudyBlock | null>(null);
+  const [showPromiseDialog, setShowPromiseDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     loadStudyBlocks();
+    loadPinkyPromises();
   }, []);
+
+  const loadPinkyPromises = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('pinky_promises')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setPinkyPromises(data || []);
+    } catch (error: any) {
+      console.error('Error loading promises:', error);
+    }
+  };
 
   const loadStudyBlocks = async () => {
     try {
@@ -56,6 +84,16 @@ const CalendarPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check if block has a pinky promise
+  const hasPromise = (blockId: string) => {
+    return pinkyPromises.some(p => p.block_id === blockId && p.status === 'active');
+  };
+
+  const handleBlockClick = (block: StudyBlock) => {
+    setSelectedBlock(block);
+    setShowPromiseDialog(true);
   };
 
   // Filter blocks for selected date(s)
@@ -113,6 +151,15 @@ const CalendarPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <PinkyPromiseDialog
+        isOpen={showPromiseDialog}
+        onClose={() => setShowPromiseDialog(false)}
+        studyBlock={selectedBlock}
+        onPromiseCreated={() => {
+          loadPinkyPromises();
+        }}
+      />
+
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -222,23 +269,40 @@ const CalendarPage = () => {
 
                     {/* Study blocks */}
                     <div className="ml-16 relative h-full">
-                      {displayedBlocks.map((block, idx) => (
-                        <div
-                          key={block.id}
-                          className="absolute left-0 right-0 rounded-lg p-3 border-l-4"
-                          style={{
-                            top: `${getTimePosition(block.start_time)}%`,
-                            height: `${getBlockHeight(block.duration_minutes)}%`,
-                            backgroundColor: `hsl(var(--${idx % 3 === 0 ? 'primary' : idx % 3 === 1 ? 'secondary' : 'accent'}) / 0.2)`,
-                            borderColor: `hsl(var(--${idx % 3 === 0 ? 'primary' : idx % 3 === 1 ? 'secondary' : 'accent'}))`
-                          }}
-                        >
-                          <div className="font-bold text-sm truncate">{block.classes.name}</div>
-                          <div className="text-xs font-medium mt-1">
-                            {formatTime(block.start_time)} • {block.duration_minutes}m
-                          </div>
-                        </div>
-                      ))}
+                      {displayedBlocks.map((block, idx) => {
+                        const hasBlockPromise = hasPromise(block.id);
+                        
+                        return (
+                          <button
+                            key={block.id}
+                            onClick={() => handleBlockClick(block)}
+                            className="absolute left-0 right-0 rounded-lg p-3 border-l-4 hover:shadow-lg transition-all cursor-pointer group"
+                            style={{
+                              top: `${getTimePosition(block.start_time)}%`,
+                              height: `${getBlockHeight(block.duration_minutes)}%`,
+                              backgroundColor: `hsl(var(--${idx % 3 === 0 ? 'primary' : idx % 3 === 1 ? 'secondary' : 'accent'}) / 0.2)`,
+                              borderColor: `hsl(var(--${idx % 3 === 0 ? 'primary' : idx % 3 === 1 ? 'secondary' : 'accent'}))`
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 text-left">
+                                <div className="font-bold text-sm truncate">{block.classes.name}</div>
+                                <div className="text-xs font-medium mt-1">
+                                  {formatTime(block.start_time)} • {block.duration_minutes}m
+                                </div>
+                              </div>
+                              {hasBlockPromise && (
+                                <div className="text-lg">🤙</div>
+                              )}
+                            </div>
+                            {!hasBlockPromise && (
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground mt-1">
+                                Click to make pinky promise
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

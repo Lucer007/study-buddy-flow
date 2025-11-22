@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.chat-tutor]
 verify_jwt = true
+
+[functions.send-pinky-reminders]
+verify_jwt = false
