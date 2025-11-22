@@ -28,6 +28,7 @@ import ReviewPost from "./pages/ReviewPost";
 import Buddies from "./pages/Buddies";
 import Chat from "./pages/Chat";
 import GeminiStudyPlan from "./pages/GeminiStudyPlan";
+import TodayStudy from "./pages/TodayStudy";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -64,6 +65,7 @@ const App = () => (
             
             {/* Main App - With Bottom Nav */}
             <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+            <Route path="/today" element={<Layout><TodayStudy /></Layout>} />
             <Route path="/buddies" element={<Layout><Buddies /></Layout>} />
             <Route path="/chat" element={<Layout><Chat /></Layout>} />
             <Route path="/profile" element={<Layout><Profile /></Layout>} />

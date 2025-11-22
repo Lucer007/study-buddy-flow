@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Flame, MessageCircle, BookOpen, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useStudyReminders } from '@/hooks/useStudyReminders';
 import { formatDistanceToNow } from 'date-fns';
 
 interface FeedPost {
@@ -60,6 +61,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
   const { toast } = useToast();
+
+  // Enable study reminders
+  useStudyReminders();
 
   useEffect(() => {
     if (user) {
@@ -373,6 +377,29 @@ const Dashboard = () => {
           <h1 className="text-white text-2xl font-bold">Home</h1>
           <p className="text-[#888888] text-sm">Your study dashboard & feed</p>
         </div>
+
+        {/* Quick Action - Today's Study */}
+        {!loading && hasData && (
+          <div className="px-5 pt-4">
+            <button
+              onClick={() => navigate('/today')}
+              className="w-full rounded-2xl p-4 flex items-center justify-between hover-scale"
+              style={{
+                background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+                boxShadow: '0 4px 16px rgba(247, 107, 28, 0.3)'
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <CalendarIcon className="h-5 w-5 text-white" />
+                <div className="text-left">
+                  <div className="text-white font-bold">Today's Study Schedule</div>
+                  <div className="text-white/80 text-sm">View your AI-powered study plan</div>
+                </div>
+              </div>
+              <div className="text-white text-xl">→</div>
+            </button>
+          </div>
+        )}
 
         {/* Empty State - First Time */}
         {!loading && !hasData && (
