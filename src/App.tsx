@@ -12,6 +12,7 @@ import WeekendStudyTime from "./pages/WeekendStudyTime";
 import AddClasses from "./pages/AddClasses";
 import Dashboard from "./pages/Dashboard";
 import ClassDetail from "./pages/ClassDetail";
+import ClassesReady from "./pages/ClassesReady";
 import AIProcessing from "./pages/AIProcessing";
 import AssignmentSummary from "./pages/AssignmentSummary";
 import StudyPlan from "./pages/StudyPlan";
@@ -52,6 +53,7 @@ const App = () => (
             
             {/* Class Management - No Nav */}
             <Route path="/class/:classId" element={<ClassDetail />} />
+            <Route path="/classes-ready" element={<ClassesReady />} />
             <Route path="/ai-processing/:classId" element={<AIProcessing />} />
             <Route path="/assignment-summary/:classId" element={<AssignmentSummary />} />
             <Route path="/study-plan/:classId" element={<StudyPlan />} />

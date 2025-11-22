@@ -176,11 +176,9 @@ const ClassDetail = () => {
         console.error('Parse error:', parseError);
         toast.error('Syllabus parsing failed');
       } else {
-        const studyBlocksCount = parseData.studyBlocksCount || 0;
-        const classMeetingsCount = parseData.classMeetingBlocksCount || 0;
-        const assignmentBlocksCount = parseData.assignmentBlocksCount || 0;
-        
-        toast.success(`✨ Found ${parseData.topicsCount} topics, ${parseData.assignmentsCount} assignments. Created ${studyBlocksCount} calendar events (${classMeetingsCount} class meetings, ${assignmentBlocksCount} study sessions)`);
+        // Navigate to classes ready page with summary
+        navigate(`/classes-ready?classId=${classId}`);
+        return;
       }
 
       await loadClassData();
