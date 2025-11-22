@@ -89,7 +89,44 @@ Adjust estimates based on weekday hours preference: ${weekdayHours}h/day`
             content: [
               {
                 type: 'text',
-                text: 'Parse this syllabus PDF and extract all topics/lessons and assignments with time estimates.'
+                text: `You are an expert academic advisor with deep understanding of college coursework and study time estimation. Analyze this syllabus carefully.
+
+Extract information and return ONLY valid JSON (no markdown formatting or code blocks):
+
+{
+  "topics": [
+    {
+      "title": "Topic name",
+      "description": "Brief description (what students will learn)",
+      "estimated_minutes": 180
+    }
+  ],
+  "assignments": [
+    {
+      "title": "Assignment name",
+      "type": "homework|reading|exam|project|quiz|lab|paper|presentation",
+      "due_date": "YYYY-MM-DD or null",
+      "estimated_minutes": 240
+    }
+  ]
+}
+
+CRITICAL TIME ESTIMATION GUIDELINES:
+- Reading assignments: 20-30 pages = 60-90 min, 50+ pages = 120-180 min
+- Homework problems: 5-10 problems = 90-120 min, 15+ problems = 180-240 min
+- Lab work: typical lab = 120-180 min
+- Projects: small = 240-360 min, medium = 480-720 min, large = 900+ min
+- Exams: midterm prep = 300-480 min, final prep = 600-900 min
+- Papers: 5 pages = 300-480 min, 10+ pages = 600-900 min
+- Consider difficulty level: introductory courses need less time than advanced courses
+- Factor in prerequisites: students with background knowledge need 20-30% less time
+
+For topics, estimate cumulative study time including:
+- Initial learning from textbook/materials
+- Practice problems and exercises
+- Review and retention work
+
+Return ONLY the JSON object, no other text or formatting.`
               },
               {
                 type: 'image_url',
