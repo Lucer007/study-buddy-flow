@@ -374,6 +374,33 @@ const Dashboard = () => {
     );
   }
 
+  // Empty state when no classes
+  if (!loading && classes.length === 0) {
+    return (
+      <div className="min-h-screen bg-black pb-20 flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-6xl mb-4 animate-float">📚✨</div>
+          <h2 className="text-white text-3xl font-black">
+            Upload your syllabus to get started
+          </h2>
+          <p className="text-[#BFBFBF] text-lg">
+            Nudge will automatically detect your classes, topics, and assignments — then create your personalized study plan!
+          </p>
+          <button
+            onClick={() => navigate('/class/new')}
+            className="w-full h-16 text-lg font-bold rounded-3xl hover-scale"
+            style={{
+              background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+              boxShadow: '0 8px 24px rgba(247, 107, 28, 0.4)'
+            }}
+          >
+            Upload Syllabus →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black pb-24">
       <div className="max-w-2xl mx-auto">

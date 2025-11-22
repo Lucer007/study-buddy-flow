@@ -14,7 +14,7 @@ const WeekendStudyTime = () => {
 
   const handleSelect = (value: string) => {
     setWeekendHours(value);
-    navigate('/add-classes');
+    navigate('/dashboard');
   };
 
   return (
