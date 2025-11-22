@@ -20,6 +20,8 @@ import Calendar from "./pages/Calendar";
 import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Feed from "./pages/Feed";
+import NudgeCamera from "./pages/NudgeCamera";
+import LockMode from "./pages/LockMode";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +50,8 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/feed" element={<Feed />} />
+            <Route path="/nudge-camera" element={<NudgeCamera />} />
+            <Route path="/lock-mode" element={<LockMode />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
