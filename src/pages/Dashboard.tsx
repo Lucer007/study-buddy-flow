@@ -74,11 +74,11 @@ const Dashboard = () => {
       setHasData(hasAnyData);
 
       if (hasAnyData) {
-        // Load today's study block
+        // Load today's study block only if user has any study data
         await loadTodayBlock();
-        // Load feed
-        await loadFeed();
       }
+      // Always load feed so users see friends/fake posts even before first session
+      await loadFeed();
     } catch (error: any) {
       toast({
         title: "Failed to load dashboard",
