@@ -82,8 +82,9 @@ const ReviewPost = () => {
 
       if (postError) throw postError;
 
-      // Update streak
-      await supabase.rpc('update_user_streak', {
+      // Update class streak
+      await supabase.rpc('update_class_streak', {
+        p_class_id: selectedClass,
         p_user_id: user.id,
         p_minutes: parseInt(duration),
       });

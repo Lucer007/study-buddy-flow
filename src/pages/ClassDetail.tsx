@@ -1,32 +1,107 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useOnboarding } from '@/contexts/OnboardingContext';
-import { Upload, FileText, Loader2 } from 'lucide-react';
+import { Upload, FileText, Loader2, ArrowLeft, Flame, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface ClassData {
+  id: string;
+  name: string;
+  progress_percentage: number;
+  streak: number;
+  last_studied_date: string | null;
+  syllabus_url: string | null;
+}
+
+interface StudySession {
+  id: string;
+  minutes_studied: number;
+  completed_at: string;
+  created_at: string;
+}
+
+interface Assignment {
+  id: string;
+  title: string;
+  due_date: string | null;
+  estimated_minutes: number | null;
+}
 
 const ClassDetail = () => {
   const navigate = useNavigate();
   const { classId } = useParams();
-  const { state, updateClass } = useOnboarding();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const [classData, setClassData] = useState<ClassData | null>(null);
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const classItem = state.classes.find(c => c.id === classId);
+  useEffect(() => {
+    if (user && classId) {
+      loadClassData();
+    }
+  }, [user, classId]);
 
-  if (!classItem) {
-    navigate('/dashboard');
-    return null;
-  }
+  const loadClassData = async () => {
+    if (!user || !classId) return;
+    
+    try {
+      // Load class data
+      const { data: classInfo, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('id', classId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (classError) throw classError;
+      setClassData(classInfo);
+
+      // Load study sessions
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('study_sessions')
+        .select('*')
+        .eq('class_id', classId)
+        .eq('user_id', user.id)
+        .order('completed_at', { ascending: false })
+        .limit(10);
+
+      if (sessionsError) throw sessionsError;
+      setSessions(sessionsData || []);
+
+      // Load assignments
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('assignments')
+        .select('*')
+        .eq('class_id', classId)
+        .eq('user_id', user.id)
+        .order('due_date', { ascending: true });
+
+      if (assignmentsError) throw assignmentsError;
+      setAssignments(assignmentsData || []);
+
+    } catch (error: any) {
+      toast({
+        title: "Failed to load class",
+        description: error.message,
+        variant: "destructive",
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user || !classId) return;
 
-    // Validate file type
     if (!file.type.includes('pdf') && !file.type.includes('document')) {
       toast({
         title: "Invalid file type",
@@ -40,151 +115,184 @@ const ClassDetail = () => {
     setUploadProgress(0);
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('You must be logged in to upload files');
-      }
-
-      // Upload to Supabase Storage
       const fileName = `${user.id}/${classId}/${Date.now()}-${file.name}`;
       setUploadProgress(30);
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('syllabi')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
-
       setUploadProgress(50);
 
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('syllabi')
-        .getPublicUrl(fileName);
-
-      // Call edge function to parse syllabus
-      setUploadProgress(60);
-      
-      const { data: parseData, error: parseError } = await supabase.functions.invoke('parse-syllabus', {
+      const { error: parseError } = await supabase.functions.invoke('parse-syllabus', {
         body: {
           syllabusUrl: fileName,
           classId,
           userId: user.id,
-          weekdayHours: state.weekdayHours,
-          weekendHours: state.weekendHours,
+          weekdayHours: 2,
+          weekendHours: 3,
         },
       });
 
       if (parseError) throw parseError;
-
       setUploadProgress(100);
-
-      // Update local state
-      updateClass(classId!, { syllabusUploaded: true });
 
       toast({
         title: "Success! ✨",
-        description: `Found ${parseData.assignments?.length || 0} assignments and created your study plan!`,
+        description: "Syllabus parsed and study plan created!",
       });
 
-      // Navigate to assignment summary
-      setTimeout(() => {
-        navigate(`/assignment-summary/${classId}`);
-      }, 500);
-
+      loadClassData();
     } catch (error: any) {
-      console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: error.message || 'Something went wrong. Please try again.',
+        description: error.message,
         variant: "destructive",
       });
+    } finally {
       setIsProcessing(false);
       setUploadProgress(0);
     }
   };
 
-  const handleUpload = () => {
-    fileInputRef.current?.click();
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const handleSkip = () => {
-    updateClass(classId!, { syllabusUploaded: true });
-    navigate('/dashboard');
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!classData) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6 relative overflow-hidden">
-      {/* Decorative gradient */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
-
-      <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
-        <div className="text-center space-y-4">
-          <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-3xl flex items-center justify-center mb-4 glow-primary animate-float">
-            <FileText className="h-12 w-12 text-white" />
-          </div>
-          <h1 className="text-4xl font-black text-foreground leading-tight">
-            Upload syllabus for<br/>{classItem.name} 📄
-          </h1>
-          <p className="text-lg text-muted-foreground font-medium">
-            AI will scan it and build your personalized study plan
-          </p>
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border">
+        <div className="flex items-center gap-3 p-4">
+          <button onClick={() => navigate('/profile')} className="hover-scale">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold">{classData.name}</h1>
         </div>
+      </div>
 
-        <div className="space-y-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-
-          <Button
-            onClick={handleUpload}
-            disabled={isProcessing}
-            className="w-full h-18 text-lg font-bold bg-gradient-primary hover:opacity-90 transition-all hover-scale glow-primary rounded-3xl relative overflow-hidden"
-            size="lg"
-          >
-            {isProcessing ? (
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                <div className="flex flex-col items-start">
-                  <span>Processing...</span>
-                  <span className="text-xs opacity-80">{uploadProgress}% complete</span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Upload className="h-6 w-6" />
-                <span>Upload PDF or Word Doc</span>
+      <div className="max-w-2xl mx-auto px-5 pt-6 space-y-6">
+        {/* Progress Card */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-lg">📊 Progress</h2>
+            {classData.streak > 0 && (
+              <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500/20 to-red-500/20 px-3 py-2 rounded-full">
+                <Flame className="w-5 h-5 text-orange-500" />
+                <span className="font-bold">{classData.streak}-day streak</span>
               </div>
             )}
-          </Button>
-
-          <Button
-            onClick={handleSkip}
-            disabled={isProcessing}
-            variant="outline"
-            className="w-full h-16 text-lg font-bold bg-card border-2 border-border hover:border-primary transition-all hover-scale rounded-3xl"
-            size="lg"
-          >
-            Skip for now
-          </Button>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Through study plan</span>
+              <span className="font-bold text-lg">{classData.progress_percentage}%</span>
+            </div>
+            <div className="h-3 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
+                style={{ width: `${classData.progress_percentage}%` }}
+              />
+            </div>
+          </div>
         </div>
 
-        {isProcessing && (
-          <div className="text-center space-y-2 animate-in fade-in duration-300">
-            <p className="text-sm text-muted-foreground font-medium">
-              ✨ AI is reading your syllabus...
-            </p>
-            <p className="text-xs text-muted-foreground">
-              This might take a moment
-            </p>
+        {/* Completed Sessions */}
+        {sessions.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-bold text-lg">✅ Completed Sessions</h2>
+            <div className="space-y-2">
+              {sessions.map((session) => (
+                <div key={session.id} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{formatDate(session.completed_at)}</div>
+                    <div className="text-sm text-muted-foreground">{session.minutes_studied} minutes</div>
+                  </div>
+                  <div className="text-2xl">✨</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* Upcoming Assignments */}
+        {assignments.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-bold text-lg">📝 Upcoming AI Plan</h2>
+            <div className="space-y-2">
+              {assignments.slice(0, 5).map((assignment) => (
+                <div key={assignment.id} className="bg-card border border-border rounded-xl p-4">
+                  <div className="font-medium mb-1">{assignment.title}</div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    {assignment.due_date && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span>Due {formatDate(assignment.due_date)}</span>
+                      </div>
+                    )}
+                    {assignment.estimated_minutes && (
+                      <span>Suggested: {assignment.estimated_minutes} min</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upload Syllabus */}
+        {!classData.syllabus_url && (
+          <div className="space-y-3">
+            <h2 className="font-bold text-lg">📄 Upload Syllabus</h2>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessing}
+              className="w-full h-14 bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+            >
+              {isProcessing ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Processing... {uploadProgress}%</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  <span>Upload PDF or Word Doc</span>
+                </div>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate('/nudge-camera')}
+            className="w-full h-14 bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 font-bold"
+          >
+            Start Nudge 📸
+          </Button>
+        </div>
       </div>
     </div>
   );

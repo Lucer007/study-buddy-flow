@@ -42,12 +42,21 @@ interface StudyBlock {
   block_date: string;
 }
 
+interface ClassWithProgress {
+  id: string;
+  name: string;
+  progress_percentage: number;
+  streak: number;
+  last_studied_date: string | null;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [todayBlock, setTodayBlock] = useState<StudyBlock | null>(null);
+  const [classes, setClasses] = useState<ClassWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
   const { toast } = useToast();
@@ -77,7 +86,8 @@ const Dashboard = () => {
         // Load today's study block only if user has any study data
         await loadTodayBlock();
       }
-      // Always load feed so users see friends/fake posts even before first session
+      // Always load classes and feed
+      await loadClasses();
       await loadFeed();
     } catch (error: any) {
       toast({
@@ -133,6 +143,23 @@ const Dashboard = () => {
       }
     } catch (error: any) {
       console.error('Error loading today block:', error);
+    }
+  };
+
+  const loadClasses = async () => {
+    if (!user) return;
+
+    try {
+      const { data: classesData, error } = await supabase
+        .from('classes')
+        .select('id, name, progress_percentage, streak, last_studied_date')
+        .eq('user_id', user.id)
+        .order('progress_percentage', { ascending: true }); // Show classes with lowest progress first (most urgent)
+
+      if (error) throw error;
+      setClasses(classesData || []);
+    } catch (error: any) {
+      console.error('Error loading classes:', error);
     }
   };
 
@@ -381,44 +408,65 @@ const Dashboard = () => {
         {!loading && hasData && (
           <div className="space-y-6">
             
-            {/* Today's Plan Section */}
-            {todayBlock && (
-              <div className="px-5 pt-6">
-                <h2 className="text-white text-lg font-semibold mb-3">📚 Today's Nudge</h2>
-                <div 
-                  className="rounded-2xl p-5 space-y-4"
-                  style={{ background: '#141414' }}
-                >
-                  <div>
-                    <div className="text-white font-semibold text-lg mb-1">
-                      {todayBlock.class_name}
-                      {todayBlock.assignment_title && ` – ${todayBlock.assignment_title}`}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-[#888888]">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {todayBlock.duration_minutes} min
-                      </span>
-                      {todayBlock.start_time && (
-                        <span className="flex items-center gap-1">
-                          <CalendarIcon className="w-4 h-4" />
-                          {todayBlock.start_time}
-                        </span>
+            {/* Today's Suggested Study - Class Based */}
+            {classes.length > 0 && (
+              <div className="px-5 pt-6 space-y-3">
+                <h2 className="text-white text-lg font-semibold">📚 Today's Suggested Study</h2>
+                <p className="text-[#888888] text-sm mb-3">Sorted by urgency — focus on what needs attention</p>
+                
+                {classes.slice(0, 3).map((cls) => (
+                  <div 
+                    key={cls.id}
+                    onClick={() => navigate(`/class/${cls.id}`)}
+                    className="rounded-2xl p-5 space-y-3 cursor-pointer hover-scale"
+                    style={{ background: '#141414' }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="text-white font-bold text-lg mb-1">
+                          {cls.name}
+                        </div>
+                        <div className="text-[#888888] text-sm">
+                          You're {cls.progress_percentage}% through the plan
+                        </div>
+                      </div>
+                      {cls.streak > 0 && (
+                        <div className="flex items-center gap-1 rounded-full px-3 py-1.5" style={{ background: 'linear-gradient(135deg, rgba(255,107,0,0.2) 0%, rgba(255,68,68,0.2) 100%)' }}>
+                          <Flame className="w-4 h-4 text-orange-500" />
+                          <span className="text-white font-bold text-sm">{cls.streak}</span>
+                        </div>
                       )}
                     </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="space-y-1">
+                      <div className="h-2.5 rounded-full overflow-hidden" style={{ background: '#1C1C1C' }}>
+                        <div 
+                          className="h-full transition-all duration-500"
+                          style={{ 
+                            width: `${cls.progress_percentage}%`,
+                            background: 'linear-gradient(90deg, #FAD961 0%, #F76B1C 100%)',
+                            boxShadow: '0 0 10px rgba(247, 107, 28, 0.5)'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/nudge-camera');
+                      }}
+                      className="w-full h-11 rounded-[22px] text-white font-semibold text-sm"
+                      style={{
+                        background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+                        boxShadow: '0 6px 20px rgba(247, 107, 28, 0.3)'
+                      }}
+                    >
+                      Start Nudge for {cls.name}
+                    </button>
                   </div>
-                  
-                  <button
-                    onClick={() => navigate('/nudge-camera')}
-                    className="w-full h-12 rounded-[24px] text-white font-semibold text-base hover-scale"
-                    style={{
-                      background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
-                      boxShadow: '0 8px 24px rgba(247, 107, 28, 0.4)'
-                    }}
-                  >
-                    Start Nudge Now
-                  </button>
-                </div>
+                ))}
               </div>
             )}
 

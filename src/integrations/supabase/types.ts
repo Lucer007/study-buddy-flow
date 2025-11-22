@@ -63,7 +63,10 @@ export type Database = {
           ai_parsed: boolean | null
           created_at: string | null
           id: string
+          last_studied_date: string | null
           name: string
+          progress_percentage: number | null
+          streak: number | null
           syllabus_url: string | null
           updated_at: string | null
           user_id: string
@@ -72,7 +75,10 @@ export type Database = {
           ai_parsed?: boolean | null
           created_at?: string | null
           id?: string
+          last_studied_date?: string | null
           name: string
+          progress_percentage?: number | null
+          streak?: number | null
           syllabus_url?: string | null
           updated_at?: string | null
           user_id: string
@@ -81,7 +87,10 @@ export type Database = {
           ai_parsed?: boolean | null
           created_at?: string | null
           id?: string
+          last_studied_date?: string | null
           name?: string
+          progress_percentage?: number | null
+          streak?: number | null
           syllabus_url?: string | null
           updated_at?: string | null
           user_id?: string
@@ -379,6 +388,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      update_class_streak: {
+        Args: { p_class_id: string; p_minutes: number; p_user_id: string }
+        Returns: undefined
+      }
       update_user_streak: {
         Args: { p_minutes: number; p_user_id: string }
         Returns: undefined

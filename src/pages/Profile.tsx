@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { BookOpen, Trophy } from 'lucide-react';
+import { BookOpen, Flame } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,9 +10,15 @@ interface Profile {
   display_name: string;
   bio: string;
   photo_url: string;
-  streak: number;
-  longest_streak: number;
   total_minutes: number;
+}
+
+interface ClassWithProgress {
+  id: string;
+  name: string;
+  progress_percentage: number;
+  streak: number;
+  last_studied_date: string | null;
 }
 
 interface Post {
@@ -21,28 +27,16 @@ interface Post {
   timelapse_url?: string;
   minutes_studied: number;
   created_at: string;
-  class_id?: string;
-}
-
-interface Class {
-  id: string;
-  name: string;
 }
 
 const Profile = () => {
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [classes, setClasses] = useState<ClassWithProgress[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [studyBuddiesCount, setStudyBuddiesCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-  const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
-
-  const weeklyGoalHours = 10;
-  const weeklyStudiedHours = Math.floor((profile?.total_minutes || 0) / 60);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -54,7 +48,6 @@ const Profile = () => {
     if (!user) return;
     
     try {
-
       // Load profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -65,6 +58,16 @@ const Profile = () => {
       if (profileError) throw profileError;
       setProfile(profileData);
 
+      // Load classes with progress
+      const { data: classesData, error: classesError } = await supabase
+        .from('classes')
+        .select('id, name, progress_percentage, streak, last_studied_date')
+        .eq('user_id', user.id)
+        .order('progress_percentage', { ascending: false });
+
+      if (classesError) throw classesError;
+      setClasses(classesData || []);
+
       // Load posts
       const { data: postsData, error: postsError } = await supabase
         .from('feed_posts')
@@ -74,36 +77,6 @@ const Profile = () => {
 
       if (postsError) throw postsError;
       setPosts(postsData || []);
-
-      // Load classes
-      const { data: classesData, error: classesError } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('user_id', user.id);
-
-      if (classesError) throw classesError;
-      setClasses(classesData || []);
-
-      // Load study buddies count (friends)
-      const { data: friendsData, error: friendsError } = await supabase
-        .from('friendships')
-        .select('id')
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-
-      if (friendsError) throw friendsError;
-      setStudyBuddiesCount(friendsData?.length || 0);
-      setFollowingCount(friendsData?.length || 0);
-
-      // Calculate leaderboard rank
-      const { data: allProfiles, error: rankError } = await supabase
-        .from('profiles')
-        .select('user_id, total_minutes')
-        .order('total_minutes', { ascending: false });
-
-      if (!rankError && allProfiles) {
-        const rank = allProfiles.findIndex(p => p.user_id === user.id) + 1;
-        setLeaderboardRank(rank);
-      }
 
     } catch (error: any) {
       toast({
@@ -116,16 +89,22 @@ const Profile = () => {
     }
   };
 
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const getLastStudiedText = (date: string | null) => {
+    if (!date) return 'Never studied';
+    const lastDate = new Date(date);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return `${diffDays} days ago`;
   };
 
   if (loading || authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <div className="animate-spin text-white">
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin">
           <BookOpen className="h-12 w-12" />
         </div>
       </div>
@@ -135,241 +114,132 @@ const Profile = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-black pb-24">
-      <div className="max-w-2xl mx-auto px-5 pt-10 space-y-5">
+    <div className="min-h-screen bg-background pb-24">
+      <div className="max-w-2xl mx-auto px-5 pt-10 space-y-6">
         
-        {/* 1. Profile Photo + Rank Badge */}
-        <div className="flex flex-col items-center">
-          <div className="relative mb-3">
-            <div 
-              className="w-[120px] h-[120px] rounded-full p-[3px] animate-float"
-              style={{
-                background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
-                boxShadow: '0 8px 32px rgba(247, 107, 28, 0.4)'
-              }}
-            >
-              <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-5xl font-black overflow-hidden">
-                {profile.photo_url ? (
-                  <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-white">{profile.display_name[0]}</span>
-                )}
-              </div>
-            </div>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 flex items-center justify-center">
-              <Trophy className="w-6 h-6" style={{ color: '#FFD700' }} />
-            </div>
-          </div>
-
-          {/* 2. Name */}
-          <h1 className="text-[26px] font-semibold text-white text-center mb-5">{profile.display_name}</h1>
-        </div>
-
-        {/* 3. Streak Card */}
-        <div 
-          className="h-[54px] rounded-[28px] px-6 flex items-center justify-between hover-scale cursor-pointer"
-          style={{
-            background: 'linear-gradient(90deg, #3A1C00 0%, #1A0F00 100%)'
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🔥</span>
-            <div>
-              <div className="text-white font-bold text-base leading-tight">{profile.streak} Day Streak</div>
-              <div className="text-[#C9C9C9] text-xs">Keep it going!</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 4. Weekly Study Goal Bar */}
-        <div 
-          className="h-[66px] rounded-[20px] p-4 flex items-center justify-between"
-          style={{ background: '#141414' }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎯</span>
-            <div>
-              <div className="text-white font-medium text-sm leading-tight">Goal: {weeklyGoalHours}h/week</div>
-              <div className="text-[#888888] text-xs">{weeklyStudiedHours} of {weeklyGoalHours} done</div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {[...Array(4)].map((_, i) => (
-              <div 
-                key={i}
-                className="w-3 h-3 rounded-full"
-                style={{
-                  background: i < Math.ceil((weeklyStudiedHours / weeklyGoalHours) * 4) 
-                    ? 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)' 
-                    : '#333333',
-                  boxShadow: i < Math.ceil((weeklyStudiedHours / weeklyGoalHours) * 4) 
-                    ? '0 0 8px rgba(247, 107, 28, 0.6)' 
-                    : 'none'
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* 5. Leaderboard Section */}
-        {leaderboardRank && (
-          <div className="text-center py-4">
-            <div className="text-white font-semibold text-lg mb-1">#{leaderboardRank} Among Friends</div>
-            <button 
-              onClick={() => navigate('/leaderboard')}
-              className="text-[#6EA8FF] text-sm hover:underline"
-            >
-              View Leaderboard →
-            </button>
-          </div>
-        )}
-
-        {/* 6. Stats Row */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="text-center">
-            <div className="text-white font-semibold text-xl mb-1">
-              {Math.floor(profile.total_minutes / 60)}
-            </div>
-            <div className="text-[#888888] text-xs">
-              Hours Studied
-            </div>
-          </div>
-
-          <div className="text-center">
-            <div className="text-white font-semibold text-xl mb-1">
-              {studyBuddiesCount}
-            </div>
-            <div className="text-[#888888] text-xs">
-              Study Buddies
-            </div>
-          </div>
-
-          <div className="text-center">
-            <div className="text-white font-semibold text-xl mb-1">
-              {followingCount}
-            </div>
-            <div className="text-[#888888] text-xs">
-              Following
-            </div>
-          </div>
-        </div>
-
-        {/* 7. Quick Access Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Study Buddies */}
+        {/* Header - Profile Info */}
+        <div className="flex flex-col items-center space-y-3">
           <div 
-            onClick={() => navigate('/buddies')}
-            className="rounded-[20px] p-5 hover-scale cursor-pointer"
-            style={{ background: '#141414' }}
+            className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black overflow-hidden bg-gradient-to-br from-primary to-secondary"
           >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="text-3xl">👥</div>
-              <div className="text-white font-semibold text-sm">Study Buddies</div>
-              <div className="text-[#888888] text-xs">{studyBuddiesCount} buddies</div>
-            </div>
+            {profile.photo_url ? (
+              <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-primary-foreground">{profile.display_name[0]}</span>
+            )}
           </div>
-
-          {/* Messages */}
-          <div 
-            onClick={() => navigate('/chat')}
-            className="rounded-[20px] p-5 hover-scale cursor-pointer"
-            style={{ background: '#141414' }}
-          >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="text-3xl">💬</div>
-              <div className="text-white font-semibold text-sm">Messages</div>
-              <div className="text-[#888888] text-xs">Coming soon</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 8. Share Profile Button */}
-        <div className="flex justify-center">
+          <h1 className="text-2xl font-bold">{profile.display_name}</h1>
           <button 
-            className="h-[48px] rounded-[26px] px-8 text-white font-semibold text-base hover-scale"
-            style={{ 
-              background: '#1C1C1C',
-              width: '85%'
-            }}
+            className="px-6 py-2 rounded-full bg-muted hover:bg-muted/80 font-medium text-sm"
           >
             Share Profile
           </button>
         </div>
 
-        {/* 9. Study Library Card */}
-        <div 
-          className="rounded-[20px] p-[18px] hover-scale cursor-pointer"
-          style={{ background: '#141414' }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">📂</span>
-              <div>
-                <div className="text-white font-semibold text-base leading-tight">My Study Library</div>
-                <div className="text-[#888888] text-xs mt-1">Your notes, assignments & AI guides</div>
-              </div>
+        {/* Current Classes Overview */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            📚 Current Classes
+          </h2>
+          
+          {classes.length === 0 ? (
+            <div className="text-center py-12 bg-muted/50 rounded-2xl">
+              <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium mb-1">No classes yet</p>
+              <p className="text-sm text-muted-foreground">Add your first class to get started</p>
             </div>
-            <div className="text-white text-xl">→</div>
+          ) : (
+            classes.map((cls) => (
+              <div 
+                key={cls.id}
+                onClick={() => navigate(`/class/${cls.id}`)}
+                className="bg-card border border-border rounded-2xl p-5 hover-scale cursor-pointer space-y-3"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-base mb-1">{cls.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Last studied: {getLastStudiedText(cls.last_studied_date)}</span>
+                    </div>
+                  </div>
+                  {cls.streak > 0 && (
+                    <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500/20 to-red-500/20 px-3 py-1.5 rounded-full">
+                      <Flame className="w-4 h-4 text-orange-500" />
+                      <span className="font-bold text-sm">{cls.streak}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Progress through study plan</span>
+                    <span className="font-bold">{cls.progress_percentage}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
+                      style={{ width: `${cls.progress_percentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Study Stats */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+          <h3 className="font-bold">📊 Total Stats</h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold">{Math.floor(profile.total_minutes / 60)}</div>
+              <div className="text-xs text-muted-foreground">Hours</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{classes.length}</div>
+              <div className="text-xs text-muted-foreground">Classes</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{posts.length}</div>
+              <div className="text-xs text-muted-foreground">Posts</div>
+            </div>
           </div>
         </div>
 
-        {/* 10. Media Grid */}
-        {posts.length === 0 ? (
-          <div className="text-center py-16 space-y-4 rounded-[20px]" style={{ background: '#141414' }}>
-            <BookOpen className="h-16 w-16 mx-auto text-[#888888] opacity-50" />
-            <p className="text-white font-medium">No Nudge posts yet</p>
-            <p className="text-[#888888] text-sm">Complete a study session to post!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {posts.map((post) => (
-              <div
-                key={post.id}
-                className="aspect-square rounded-[14px] overflow-hidden hover-scale cursor-pointer group relative"
-                style={{ background: '#141414' }}
-              >
-                {post.timelapse_url ? (
-                  <div className="relative w-full h-full">
-                    <video src={post.timelapse_url} className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2 rounded-xl px-2 py-1 text-white text-xs font-medium" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                      {Math.floor(post.minutes_studied)}m
-                    </div>
-                  </div>
-                ) : post.photo_url ? (
-                  <>
-                    <img src={post.photo_url} alt="Nudge" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2 rounded-xl px-2 py-1 text-white text-xs font-medium" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                      {Math.floor(post.minutes_studied)}m
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)' }}>
-                    <BookOpen className="h-12 w-12 text-white" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 11. Footer - Current Classes ONLY */}
-        {classes.length > 0 && (
-          <div className="pt-5 pb-8">
-            <div className="text-white font-bold text-lg mb-2.5">📚 Current Classes</div>
-            <div className="flex flex-wrap gap-2">
-              {classes.map((cls) => (
-                <div 
-                  key={cls.id}
-                  className="rounded-[18px] px-[14px] py-2 text-white text-sm hover-scale cursor-pointer"
-                  style={{ background: '#1B1B1B' }}
+        {/* Media Grid */}
+        <div className="space-y-3">
+          <h3 className="font-bold">📸 StudyGrams</h3>
+          {posts.length === 0 ? (
+            <div className="text-center py-12 bg-muted/50 rounded-2xl">
+              <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium mb-1">No posts yet</p>
+              <p className="text-sm text-muted-foreground">Complete a study session to share!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {posts.map((post) => (
+                <div
+                  key={post.id}
+                  className="aspect-square rounded-xl overflow-hidden hover-scale cursor-pointer relative bg-muted"
                 >
-                  {cls.name}
+                  {post.timelapse_url ? (
+                    <video src={post.timelapse_url} className="w-full h-full object-cover" />
+                  ) : post.photo_url ? (
+                    <img src={post.photo_url} alt="Study session" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-secondary">
+                      <BookOpen className="h-8 w-8 text-primary-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm rounded-lg px-2 py-1 text-xs font-bold">
+                    {Math.floor(post.minutes_studied)}m
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     </div>
   );
