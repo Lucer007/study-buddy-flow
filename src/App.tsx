@@ -7,8 +7,6 @@ import { OnboardingProvider } from "./contexts/OnboardingContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import Splash from "./pages/Splash";
 import AccountSetup from "./pages/AccountSetup";
-import WeekdayStudyTime from "./pages/WeekdayStudyTime";
-import WeekendStudyTime from "./pages/WeekendStudyTime";
 import AddClasses from "./pages/AddClasses";
 import Dashboard from "./pages/Dashboard";
 import ClassDetail from "./pages/ClassDetail";
@@ -47,8 +45,6 @@ const App = () => (
             {/* Onboarding - No Nav */}
             <Route path="/" element={<Splash />} />
             <Route path="/account-setup" element={<AccountSetup />} />
-            <Route path="/weekday-time" element={<WeekdayStudyTime />} />
-            <Route path="/weekend-time" element={<WeekendStudyTime />} />
             <Route path="/add-classes" element={<AddClasses />} />
             
             {/* Class Management - No Nav */}
