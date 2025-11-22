@@ -135,7 +135,7 @@ const Profile = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-black pb-20">
+    <div className="min-h-screen bg-black pb-24">
       <div className="max-w-2xl mx-auto px-5 pt-10 space-y-5">
         
         {/* 1. Profile Photo + Rank Badge */}

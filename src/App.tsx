@@ -22,6 +22,9 @@ import Leaderboard from "./pages/Leaderboard";
 import Feed from "./pages/Feed";
 import NudgeCamera from "./pages/NudgeCamera";
 import LockMode from "./pages/LockMode";
+import Buddies from "./pages/Buddies";
+import Chat from "./pages/Chat";
+import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,23 +38,35 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
           <Routes>
+            {/* Onboarding - No Nav */}
             <Route path="/" element={<Splash />} />
             <Route path="/account-setup" element={<AccountSetup />} />
             <Route path="/weekday-time" element={<WeekdayStudyTime />} />
             <Route path="/weekend-time" element={<WeekendStudyTime />} />
             <Route path="/add-classes" element={<AddClasses />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            
+            {/* Class Management - No Nav */}
             <Route path="/class/:classId" element={<ClassDetail />} />
             <Route path="/ai-processing/:classId" element={<AIProcessing />} />
             <Route path="/assignment-summary/:classId" element={<AssignmentSummary />} />
             <Route path="/study-plan/:classId" element={<StudyPlan />} />
-            <Route path="/home" element={<Home />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/feed" element={<Feed />} />
+            
+            {/* Camera & Lock Mode - No Nav */}
             <Route path="/nudge-camera" element={<NudgeCamera />} />
             <Route path="/lock-mode" element={<LockMode />} />
+            
+            {/* Main App - With Bottom Nav */}
+            <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+            <Route path="/buddies" element={<Layout><Buddies /></Layout>} />
+            <Route path="/chat" element={<Layout><Chat /></Layout>} />
+            <Route path="/profile" element={<Layout><Profile /></Layout>} />
+            
+            {/* Other - With Nav */}
+            <Route path="/home" element={<Layout><Home /></Layout>} />
+            <Route path="/calendar" element={<Layout><Calendar /></Layout>} />
+            <Route path="/leaderboard" element={<Layout><Leaderboard /></Layout>} />
+            <Route path="/feed" element={<Layout><Feed /></Layout>} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

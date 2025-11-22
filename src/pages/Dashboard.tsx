@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Flame, MessageCircle, BookOpen } from 'lucide-react';
+import { Flame, MessageCircle, BookOpen, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,19 +30,110 @@ interface Reaction {
 
 const REACTION_EMOJIS = ['🔥', '😭', '🤓', '☕', '💪', '🤯'];
 
+interface StudyBlock {
+  id: string;
+  class_id: string;
+  class_name?: string;
+  assignment_id?: string;
+  assignment_title?: string;
+  duration_minutes: number;
+  start_time?: string;
+  block_date: string;
+}
+
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [todayBlock, setTodayBlock] = useState<StudyBlock | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasData, setHasData] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
-      loadFeed();
+      loadDashboard();
       subscribeToReactions();
     }
   }, [user]);
+
+  const loadDashboard = async () => {
+    if (!user) return;
+
+    try {
+      // Check if user has any data (sessions, posts, or blocks)
+      const { data: sessionsData } = await supabase
+        .from('study_sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      const hasAnyData = (sessionsData && sessionsData.length > 0);
+      setHasData(hasAnyData);
+
+      if (hasAnyData) {
+        // Load today's study block
+        await loadTodayBlock();
+        // Load feed
+        await loadFeed();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Failed to load dashboard",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTodayBlock = async () => {
+    if (!user) return;
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data: blocksData } = await supabase
+        .from('study_blocks')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('block_date', today)
+        .order('start_time', { ascending: true })
+        .limit(1);
+
+      if (blocksData && blocksData.length > 0) {
+        const block = blocksData[0];
+        
+        // Get class info
+        const { data: classData } = await supabase
+          .from('classes')
+          .select('name')
+          .eq('id', block.class_id)
+          .single();
+
+        // Get assignment info if exists
+        let assignmentTitle = undefined;
+        if (block.assignment_id) {
+          const { data: assignmentData } = await supabase
+            .from('assignments')
+            .select('title')
+            .eq('id', block.assignment_id)
+            .single();
+          assignmentTitle = assignmentData?.title;
+        }
+
+        setTodayBlock({
+          ...block,
+          class_name: classData?.name,
+          assignment_title: assignmentTitle
+        });
+      }
+    } catch (error: any) {
+      console.error('Error loading today block:', error);
+    }
+  };
 
   const loadFeed = async () => {
     if (!user) return;
@@ -182,104 +274,197 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-20">
+    <div className="min-h-screen bg-black pb-24">
       <div className="max-w-2xl mx-auto">
         
         {/* Header */}
         <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm border-b border-[#1C1C1C] px-5 py-4">
-          <h1 className="text-white text-2xl font-bold">Study Buddies</h1>
-          <p className="text-[#888888] text-sm">See what your friends are working on</p>
+          <h1 className="text-white text-2xl font-bold">Home</h1>
+          <p className="text-[#888888] text-sm">Your study dashboard & feed</p>
         </div>
 
-        {/* Empty State */}
-        {posts.length === 0 && (
-          <div className="px-5 py-16 text-center space-y-4">
-            <BookOpen className="h-16 w-16 mx-auto text-[#888888] opacity-50" />
-            <h2 className="text-white text-xl font-semibold">Wow, it's calm in here 💤</h2>
-            <p className="text-[#888888]">Add more buddies to make it lively!</p>
+        {/* Empty State - First Time */}
+        {!loading && !hasData && (
+          <div className="px-5 py-12">
+            <div 
+              className="rounded-2xl p-8 text-center space-y-4"
+              style={{ background: '#141414' }}
+            >
+              <div className="text-6xl mb-4">👋</div>
+              <h2 className="text-white text-2xl font-bold">HEY {user?.email?.split('@')[0]?.toUpperCase()}</h2>
+              <p className="text-white text-lg">Ready to lock in? It's time to Nudge.</p>
+              <p className="text-[#BFBFBF]">Capture your study moment and share it.</p>
+              
+              <button
+                onClick={() => navigate('/nudge-camera')}
+                className="w-full h-14 rounded-[28px] text-white font-semibold text-base hover-scale mt-6"
+                style={{
+                  background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+                  boxShadow: '0 8px 24px rgba(247, 107, 28, 0.4)'
+                }}
+              >
+                Start Your First Study Nudge
+              </button>
+
+              <p className="text-[#888888] text-sm mt-4">
+                Once you study, you'll see your buddies' sessions here too.
+              </p>
+            </div>
           </div>
         )}
 
-        {/* Feed Posts */}
-        <div className="divide-y divide-[#1C1C1C]">
-          {posts.map((post) => (
-            <div key={post.id} className="px-5 py-4 space-y-3">
-              
-              {/* Header */}
-              <div className="flex items-center gap-3">
+        {/* Dashboard with Data */}
+        {!loading && hasData && (
+          <div className="space-y-6">
+            
+            {/* Today's Plan Section */}
+            {todayBlock && (
+              <div className="px-5 pt-6">
+                <h2 className="text-white text-lg font-semibold mb-3">📚 Today's Nudge</h2>
                 <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
-                  style={{
-                    background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)'
-                  }}
+                  className="rounded-2xl p-5 space-y-4"
+                  style={{ background: '#141414' }}
                 >
-                  {post.user_photo_url ? (
-                    <img src={post.user_photo_url} alt={post.display_name} className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <span className="text-white">{post.display_name[0]}</span>
-                  )}
+                  <div>
+                    <div className="text-white font-semibold text-lg mb-1">
+                      {todayBlock.class_name}
+                      {todayBlock.assignment_title && ` – ${todayBlock.assignment_title}`}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-[#888888]">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {todayBlock.duration_minutes} min
+                      </span>
+                      {todayBlock.start_time && (
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon className="w-4 h-4" />
+                          {todayBlock.start_time}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => navigate('/nudge-camera')}
+                    className="w-full h-12 rounded-[24px] text-white font-semibold text-base hover-scale"
+                    style={{
+                      background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+                      boxShadow: '0 8px 24px rgba(247, 107, 28, 0.4)'
+                    }}
+                  >
+                    Start Nudge Now
+                  </button>
                 </div>
-                <div className="flex-1">
-                  <div className="text-white font-semibold text-sm">{post.display_name}</div>
-                  <div className="text-[#888888] text-xs">{formatTimeAgo(post.created_at)}</div>
+              </div>
+            )}
+
+            {/* Feed Section */}
+            <div className="px-5">
+              <h2 className="text-white text-lg font-semibold mb-3">🔥 Study Buddies Feed</h2>
+              
+              {posts.length === 0 ? (
+                <div 
+                  className="rounded-2xl p-8 text-center space-y-4"
+                  style={{ background: '#141414' }}
+                >
+                  <BookOpen className="h-16 w-16 mx-auto text-[#888888] opacity-50" />
+                  <h3 className="text-white text-xl font-semibold">Wow, it's calm in here 💤</h3>
+                  <p className="text-[#888888]">Add more buddies to make it lively!</p>
+                  <button
+                    onClick={() => navigate('/buddies')}
+                    className="mt-4 h-12 px-6 rounded-[24px] bg-[#1C1C1C] text-white font-medium hover-scale"
+                  >
+                    Find Study Buddies
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-4">
+                  {posts.map((post) => (
+                    <div key={post.id} className="rounded-2xl overflow-hidden" style={{ background: '#141414' }}>
+                      
+                      {/* Header */}
+                      <div className="p-4 flex items-center gap-3">
+                        <div 
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                          style={{
+                            background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)'
+                          }}
+                        >
+                          {post.user_photo_url ? (
+                            <img src={post.user_photo_url} alt={post.display_name} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            <span className="text-white">{post.display_name[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-white font-semibold text-sm">{post.display_name}</div>
+                          <div className="text-[#888888] text-xs">{formatTimeAgo(post.created_at)}</div>
+                        </div>
+                      </div>
 
-              {/* Media */}
-              <div className="rounded-2xl overflow-hidden bg-[#141414] relative">
-                {post.timelapse_url ? (
-                  <video src={post.timelapse_url} className="w-full aspect-[4/3] object-cover" controls />
-                ) : (
-                  <img src={post.photo_url} alt="Study session" className="w-full aspect-[4/3] object-cover" />
-                )}
-              </div>
+                      {/* Media */}
+                      <div className="relative">
+                        {post.timelapse_url ? (
+                          <video src={post.timelapse_url} className="w-full aspect-[4/3] object-cover" controls />
+                        ) : (
+                          <img src={post.photo_url} alt="Study session" className="w-full aspect-[4/3] object-cover" />
+                        )}
+                      </div>
 
-              {/* Reaction Bar */}
-              <div className="flex gap-2 flex-wrap">
-                {REACTION_EMOJIS.map((emoji) => {
-                  const count = getReactionCount(post.id, emoji);
-                  return (
-                    <button
-                      key={emoji}
-                      onClick={() => toggleReaction(post.id, emoji)}
-                      className="px-3 py-1.5 rounded-full text-sm hover-scale"
-                      style={{
-                        background: count > 0 ? '#1C1C1C' : '#0A0A0A',
-                        border: '1px solid #2A2A2A'
-                      }}
-                    >
-                      <span>{emoji}</span>
-                      {count > 0 && <span className="ml-1.5 text-white text-xs font-medium">{count}</span>}
-                    </button>
-                  );
-                })}
-              </div>
+                      {/* Content */}
+                      <div className="p-4 space-y-3">
+                        {/* Reaction Bar */}
+                        <div className="flex gap-2 flex-wrap">
+                          {REACTION_EMOJIS.map((emoji) => {
+                            const count = getReactionCount(post.id, emoji);
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(post.id, emoji)}
+                                className="px-3 py-1.5 rounded-full text-sm hover-scale"
+                                style={{
+                                  background: count > 0 ? '#1C1C1C' : '#0A0A0A',
+                                  border: '1px solid #2A2A2A'
+                                }}
+                              >
+                                <span>{emoji}</span>
+                                {count > 0 && <span className="ml-1.5 text-white text-xs font-medium">{count}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
 
-              {/* Study Info */}
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-white font-medium">{Math.floor(post.minutes_studied)}m studied</span>
-                {post.class_name && (
-                  <>
-                    <span className="text-[#888888]">•</span>
-                    <span className="text-[#888888]">{post.class_name}</span>
-                  </>
-                )}
-              </div>
+                        {/* Study Info */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-white font-medium">{Math.floor(post.minutes_studied)}m studied</span>
+                          {post.class_name && (
+                            <>
+                              <span className="text-[#888888]">•</span>
+                              <span className="text-[#888888]">{post.class_name}</span>
+                            </>
+                          )}
+                        </div>
 
-              {/* Caption */}
-              {post.caption && (
-                <p className="text-white text-sm">{post.caption}</p>
+                        {/* Caption */}
+                        {post.caption && (
+                          <p className="text-white text-sm">{post.caption}</p>
+                        )}
+
+                        {/* Comment Button */}
+                        <button className="flex items-center gap-2 text-[#888888] text-sm hover:text-white transition-colors">
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Add a comment</span>
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
               )}
-
-              {/* Comment Button */}
-              <button className="flex items-center gap-2 text-[#888888] text-sm hover:text-white transition-colors">
-                <MessageCircle className="w-4 h-4" />
-                <span>Add a comment</span>
-              </button>
-
             </div>
-          ))}
-        </div>
+
+          </div>
+        )}
 
       </div>
     </div>
