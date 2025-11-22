@@ -254,7 +254,36 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* 7. Share Profile Button */}
+        {/* 7. Quick Access Cards */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Study Buddies */}
+          <div 
+            onClick={() => navigate('/buddies')}
+            className="rounded-[20px] p-5 hover-scale cursor-pointer"
+            style={{ background: '#141414' }}
+          >
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="text-3xl">👥</div>
+              <div className="text-white font-semibold text-sm">Study Buddies</div>
+              <div className="text-[#888888] text-xs">{studyBuddiesCount} buddies</div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div 
+            onClick={() => navigate('/chat')}
+            className="rounded-[20px] p-5 hover-scale cursor-pointer"
+            style={{ background: '#141414' }}
+          >
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="text-3xl">💬</div>
+              <div className="text-white font-semibold text-sm">Messages</div>
+              <div className="text-[#888888] text-xs">Coming soon</div>
+            </div>
+          </div>
+        </div>
+
+        {/* 8. Share Profile Button */}
         <div className="flex justify-center">
           <button 
             className="h-[48px] rounded-[26px] px-8 text-white font-semibold text-base hover-scale"
@@ -267,7 +296,7 @@ const Profile = () => {
           </button>
         </div>
 
-        {/* 8. Study Library Card */}
+        {/* 9. Study Library Card */}
         <div 
           className="rounded-[20px] p-[18px] hover-scale cursor-pointer"
           style={{ background: '#141414' }}
@@ -284,7 +313,7 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* 9. Media Grid */}
+        {/* 10. Media Grid */}
         {posts.length === 0 ? (
           <div className="text-center py-16 space-y-4 rounded-[20px]" style={{ background: '#141414' }}>
             <BookOpen className="h-16 w-16 mx-auto text-[#888888] opacity-50" />
@@ -323,7 +352,7 @@ const Profile = () => {
           </div>
         )}
 
-        {/* 10. Footer - Current Classes ONLY */}
+        {/* 11. Footer - Current Classes ONLY */}
         {classes.length > 0 && (
           <div className="pt-5 pb-8">
             <div className="text-white font-bold text-lg mb-2.5">📚 Current Classes</div>

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Users, Camera, MessageCircle, User } from 'lucide-react';
+import { Home, Camera, User } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -16,29 +16,14 @@ const BottomNav = () => {
         {/* Home */}
         <NavLink
           to="/dashboard"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[60px] transition-colors ${
+          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[80px] transition-colors ${
             isActive ? 'text-white' : 'text-[#888888]'
           }`}
         >
           {({ isActive }) => (
             <>
-              <Home className={`w-6 h-6 ${isActive ? 'fill-white' : ''}`} />
+              <Home className={`w-7 h-7 ${isActive ? 'fill-white' : ''}`} />
               <span className="text-xs font-medium">Home</span>
-            </>
-          )}
-        </NavLink>
-
-        {/* Buddies */}
-        <NavLink
-          to="/buddies"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[60px] transition-colors ${
-            isActive ? 'text-white' : 'text-[#888888]'
-          }`}
-        >
-          {({ isActive }) => (
-            <>
-              <Users className={`w-6 h-6 ${isActive ? 'fill-white' : ''}`} />
-              <span className="text-xs font-medium">Buddies</span>
             </>
           )}
         </NavLink>
@@ -49,41 +34,26 @@ const BottomNav = () => {
           className="flex flex-col items-center justify-center -mt-6"
         >
           <div 
-            className="w-14 h-14 rounded-full flex items-center justify-center hover-scale"
+            className="w-16 h-16 rounded-full flex items-center justify-center hover-scale"
             style={{
               background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
               boxShadow: '0 8px 24px rgba(247, 107, 28, 0.4)'
             }}
           >
-            <Camera className="w-7 h-7 text-white" />
+            <Camera className="w-8 h-8 text-white" />
           </div>
-        </NavLink>
-
-        {/* Chat */}
-        <NavLink
-          to="/chat"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[60px] transition-colors ${
-            isActive ? 'text-white' : 'text-[#888888]'
-          }`}
-        >
-          {({ isActive }) => (
-            <>
-              <MessageCircle className={`w-6 h-6 ${isActive ? 'fill-white' : ''}`} />
-              <span className="text-xs font-medium">Chat</span>
-            </>
-          )}
         </NavLink>
 
         {/* Profile */}
         <NavLink
           to="/profile"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[60px] transition-colors ${
+          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[80px] transition-colors ${
             isActive ? 'text-white' : 'text-[#888888]'
           }`}
         >
           {({ isActive }) => (
             <>
-              <User className={`w-6 h-6 ${isActive ? 'fill-white' : ''}`} />
+              <User className={`w-7 h-7 ${isActive ? 'fill-white' : ''}`} />
               <span className="text-xs font-medium">Profile</span>
             </>
           )}
