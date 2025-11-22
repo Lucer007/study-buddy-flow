@@ -5,6 +5,7 @@ import { Upload, FileText, Loader2, ArrowLeft, Flame, Calendar } from 'lucide-re
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import ClassCompletionModal from '@/components/ClassCompletionModal';
 
 interface ClassData {
   id: string;
@@ -40,6 +41,8 @@ const ClassDetail = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [hasShownCompletion, setHasShownCompletion] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -85,6 +88,12 @@ const ClassDetail = () => {
 
       if (assignmentsError) throw assignmentsError;
       setAssignments(assignmentsData || []);
+
+      // Check if class is 100% complete and show celebration
+      if (classInfo.progress_percentage === 100 && !hasShownCompletion) {
+        setShowCompletion(true);
+        setHasShownCompletion(true);
+      }
 
     } catch (error: any) {
       toast({
@@ -171,8 +180,20 @@ const ClassDetail = () => {
 
   if (!classData) return null;
 
+  // Calculate total minutes studied for this class
+  const totalMinutesStudied = sessions.reduce((sum, s) => sum + s.minutes_studied, 0);
+
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <>
+      {/* Completion Modal */}
+      <ClassCompletionModal
+        isOpen={showCompletion}
+        onClose={() => setShowCompletion(false)}
+        className={classData.name}
+        totalMinutes={totalMinutesStudied}
+      />
+
+      <div className="min-h-screen bg-background pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3 p-4">
@@ -294,7 +315,8 @@ const ClassDetail = () => {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

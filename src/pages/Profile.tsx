@@ -4,6 +4,7 @@ import { BookOpen, Flame } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { Trophy } from 'lucide-react';
 
 interface Profile {
   username: string;
@@ -157,7 +158,15 @@ const Profile = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-bold text-base mb-1">{cls.name}</h3>
+                    <h3 className="font-bold text-base mb-1 flex items-center gap-2">
+                      {cls.name}
+                      {cls.progress_percentage === 100 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full bg-gradient-to-r from-yellow-400/20 to-orange-500/20 border border-yellow-400/30">
+                          <Trophy className="w-3 h-3 text-yellow-400" fill="currentColor" />
+                          <span className="text-yellow-400">Complete</span>
+                        </span>
+                      )}
+                    </h3>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>Last studied: {getLastStudiedText(cls.last_studied_date)}</span>
                     </div>
@@ -176,11 +185,18 @@ const Profile = () => {
                     <span className="text-muted-foreground">Progress through study plan</span>
                     <span className="font-bold">{cls.progress_percentage}%</span>
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-2 bg-muted rounded-full overflow-hidden relative">
                     <div 
-                      className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
+                      className={`h-full transition-all duration-500 ${
+                        cls.progress_percentage === 100 
+                          ? 'bg-gradient-to-r from-yellow-400 to-orange-500' 
+                          : 'bg-gradient-to-r from-primary to-secondary'
+                      }`}
                       style={{ width: `${cls.progress_percentage}%` }}
                     />
+                    {cls.progress_percentage === 100 && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/30 to-orange-500/30 animate-pulse" />
+                    )}
                   </div>
                 </div>
               </div>

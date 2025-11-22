@@ -89,6 +89,17 @@ const ReviewPost = () => {
         p_minutes: parseInt(duration),
       });
 
+      // Increment class progress (simplified: add 10% per session, cap at 100%)
+      const selectedClassData = classes.find(c => c.id === selectedClass);
+      if (selectedClassData) {
+        const newProgress = Math.min(100, (selectedClassData.progress_percentage || 0) + 10);
+        await supabase
+          .from('classes')
+          .update({ progress_percentage: newProgress })
+          .eq('id', selectedClass)
+          .eq('user_id', user.id);
+      }
+
       toast({
         title: "Posted! 🎉",
         description: "Your StudyGram is live on the feed",
