@@ -62,11 +62,11 @@ const NudgeCamera = () => {
 
   const handleSend = () => {
     // TODO: Save to feed and start lock mode
-    toast({
-      title: "🎯 Starting Lock Mode",
-      description: "Time to lock in and study!",
-    });
-    navigate('/lock-mode');
+      toast({
+        title: "🎯 Starting Lock Mode",
+        description: "Time to lock in and study!",
+      });
+      navigate('/dashboard');
   };
 
   // Preview mode - both photos captured
