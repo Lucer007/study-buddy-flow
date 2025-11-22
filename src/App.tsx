@@ -27,6 +27,7 @@ import SessionComplete from "./pages/SessionComplete";
 import ReviewPost from "./pages/ReviewPost";
 import Buddies from "./pages/Buddies";
 import Chat from "./pages/Chat";
+import GeminiStudyPlan from "./pages/GeminiStudyPlan";
 import Layout from "./components/Layout";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/buddies" element={<Layout><Buddies /></Layout>} />
             <Route path="/chat" element={<Layout><Chat /></Layout>} />
             <Route path="/profile" element={<Layout><Profile /></Layout>} />
+            <Route path="/gemini-study-plan" element={<Layout><GeminiStudyPlan /></Layout>} />
             
             {/* Other - With Nav */}
             <Route path="/home" element={<Layout><Home /></Layout>} />
