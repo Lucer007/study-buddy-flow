@@ -11,9 +11,13 @@ import {
   Clock, 
   Target,
   Brain,
-  Loader2
+  Loader2,
+  Upload,
+  Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
+import Confetti from 'react-confetti';
+import { useWindowSize } from '@/hooks/use-window-size';
 
 interface ClassData {
   id: string;
@@ -46,18 +50,42 @@ const ClassesReady = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const classId = searchParams.get('classId');
+  const { width, height } = useWindowSize();
   
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [topics, setTopics] = useState<TopicData[]>([]);
   const [assignments, setAssignments] = useState<AssignmentData[]>([]);
   const [blockStats, setBlockStats] = useState<StudyBlockStats>({ total: 0, classMeetings: 0, studySessions: 0 });
   const [loading, setLoading] = useState(true);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
 
   useEffect(() => {
     if (user && classId) {
       loadClassSummary();
     }
   }, [user, classId]);
+
+  useEffect(() => {
+    // Animate progress timeline
+    const timer1 = setTimeout(() => setProgressStep(1), 300);
+    const timer2 = setTimeout(() => setProgressStep(2), 800);
+    const timer3 = setTimeout(() => setProgressStep(3), 1300);
+    const confettiTimer = setTimeout(() => {
+      setShowConfetti(true);
+    }, 1500);
+    const confettiEndTimer = setTimeout(() => {
+      setShowConfetti(false);
+    }, 6000);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(confettiTimer);
+      clearTimeout(confettiEndTimer);
+    };
+  }, []);
 
   const loadClassSummary = async () => {
     if (!user || !classId) return;
@@ -139,6 +167,18 @@ const ClassesReady = () => {
 
   return (
     <div className="min-h-screen bg-black pb-24 overflow-hidden">
+      {/* Confetti */}
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.3}
+          colors={['#FAD961', '#F76B1C', '#FF6B9D', '#C471ED', '#12C2E9']}
+        />
+      )}
+
       {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#FAD961]/10 rounded-full blur-3xl animate-pulse-glow" />
@@ -146,6 +186,99 @@ const ClassesReady = () => {
       </div>
 
       <div className="relative z-10 max-w-2xl mx-auto px-5 pt-12">
+        {/* Progress Timeline */}
+        <div className="mb-8 animate-in fade-in duration-700">
+          <div className="flex items-center justify-between mb-4">
+            {/* Step 1: Upload */}
+            <div className="flex flex-col items-center gap-2 flex-1">
+              <div 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                  progressStep >= 1 
+                    ? 'bg-gradient-to-r from-[#FAD961] to-[#F76B1C] scale-110' 
+                    : 'bg-[#1C1C1C] scale-100'
+                }`}
+              >
+                {progressStep >= 1 ? (
+                  <CheckCircle2 className="w-6 h-6 text-white animate-scale-in" />
+                ) : (
+                  <Upload className="w-5 h-5 text-[#888888]" />
+                )}
+              </div>
+              <span className={`text-xs font-semibold transition-colors ${
+                progressStep >= 1 ? 'text-white' : 'text-[#888888]'
+              }`}>
+                Upload
+              </span>
+            </div>
+
+            {/* Connecting Line 1 */}
+            <div className="flex-1 h-1 mx-2 mb-6 relative overflow-hidden rounded-full bg-[#1C1C1C]">
+              <div 
+                className="absolute inset-0 transition-all duration-500 rounded-full"
+                style={{
+                  width: progressStep >= 2 ? '100%' : '0%',
+                  background: 'linear-gradient(90deg, #FAD961 0%, #F76B1C 100%)'
+                }}
+              />
+            </div>
+
+            {/* Step 2: AI Parsing */}
+            <div className="flex flex-col items-center gap-2 flex-1">
+              <div 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                  progressStep >= 2 
+                    ? 'bg-gradient-to-r from-[#FAD961] to-[#F76B1C] scale-110' 
+                    : 'bg-[#1C1C1C] scale-100'
+                }`}
+              >
+                {progressStep >= 2 ? (
+                  <CheckCircle2 className="w-6 h-6 text-white animate-scale-in" />
+                ) : (
+                  <Brain className="w-5 h-5 text-[#888888]" />
+                )}
+              </div>
+              <span className={`text-xs font-semibold transition-colors ${
+                progressStep >= 2 ? 'text-white' : 'text-[#888888]'
+              }`}>
+                AI Parse
+              </span>
+            </div>
+
+            {/* Connecting Line 2 */}
+            <div className="flex-1 h-1 mx-2 mb-6 relative overflow-hidden rounded-full bg-[#1C1C1C]">
+              <div 
+                className="absolute inset-0 transition-all duration-500 rounded-full"
+                style={{
+                  width: progressStep >= 3 ? '100%' : '0%',
+                  background: 'linear-gradient(90deg, #FAD961 0%, #F76B1C 100%)'
+                }}
+              />
+            </div>
+
+            {/* Step 3: Schedule */}
+            <div className="flex flex-col items-center gap-2 flex-1">
+              <div 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                  progressStep >= 3 
+                    ? 'bg-gradient-to-r from-[#FAD961] to-[#F76B1C] scale-110' 
+                    : 'bg-[#1C1C1C] scale-100'
+                }`}
+              >
+                {progressStep >= 3 ? (
+                  <CheckCircle2 className="w-6 h-6 text-white animate-scale-in" />
+                ) : (
+                  <Zap className="w-5 h-5 text-[#888888]" />
+                )}
+              </div>
+              <span className={`text-xs font-semibold transition-colors ${
+                progressStep >= 3 ? 'text-white' : 'text-[#888888]'
+              }`}>
+                Schedule
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Success Header */}
         <div className="text-center space-y-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center animate-bounce" 
