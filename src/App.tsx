@@ -21,7 +21,9 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Feed from "./pages/Feed";
 import NudgeCamera from "./pages/NudgeCamera";
+import SessionSetup from "./pages/SessionSetup";
 import LockMode from "./pages/LockMode";
+import SessionComplete from "./pages/SessionComplete";
 import Buddies from "./pages/Buddies";
 import Chat from "./pages/Chat";
 import Layout from "./components/Layout";
@@ -53,7 +55,9 @@ const App = () => (
             
             {/* Camera & Lock Mode - No Nav */}
             <Route path="/nudge-camera" element={<NudgeCamera />} />
+            <Route path="/session-setup" element={<SessionSetup />} />
             <Route path="/lock-mode" element={<LockMode />} />
+            <Route path="/session-complete" element={<SessionComplete />} />
             
             {/* Main App - With Bottom Nav */}
             <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
