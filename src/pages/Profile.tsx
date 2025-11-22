@@ -1,99 +1,130 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { BookOpen, Share2, ChevronRight, Flame, PlayCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Share2, Sparkles, BookOpen, Flame, Clock, Users, UserPlus, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Profile {
+  user_id: string;
   username: string;
   display_name: string;
-  bio: string;
-  photo_url: string;
+  photo_url?: string;
+  streak: number;
   total_minutes: number;
+  bio?: string;
 }
 
 interface ClassWithProgress {
   id: string;
   name: string;
+  title?: string;
   progress_percentage: number;
   streak: number;
-  last_studied_date: string | null;
+  last_studied_date?: string;
+  estimated_remaining_minutes: number;
+  difficulty?: string;
 }
 
 interface Post {
   id: string;
-  photo_url: string;
+  photo_url?: string;
+  front_photo_url?: string;
+  back_photo_url?: string;
   timelapse_url?: string;
-  minutes_studied: number;
   created_at: string;
+  minutes_studied: number;
+  class_id?: string;
 }
 
 const Profile = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [classes, setClasses] = useState<ClassWithProgress[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (user) {
       loadProfile();
     }
-  }, [user, authLoading]);
+  }, [user]);
 
   const loadProfile = async () => {
     if (!user) return;
-    
+
     try {
       // Load profile
-      const { data: profileData, error: profileError } = await supabase
+      const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
-      if (profileError) throw profileError;
       setProfile(profileData);
 
-      // Load classes with progress
-      const { data: classesData, error: classesError } = await supabase
+      // Load classes
+      const { data: classesData } = await supabase
         .from('classes')
-        .select('id, name, progress_percentage, streak, last_studied_date')
+        .select('*')
         .eq('user_id', user.id)
         .order('progress_percentage', { ascending: false });
 
-      if (classesError) throw classesError;
       setClasses(classesData || []);
 
       // Load posts
-      const { data: postsData, error: postsError } = await supabase
+      const { data: postsData } = await supabase
         .from('feed_posts')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(12);
 
-      if (postsError) throw postsError;
       setPosts(postsData || []);
 
-    } catch (error: any) {
+      // Load followers/following counts
+      const { data: followersData } = await supabase
+        .from('friendships')
+        .select('id')
+        .eq('friend_id', user.id);
+
+      const { data: followingData } = await supabase
+        .from('friendships')
+        .select('id')
+        .eq('user_id', user.id);
+
+      setFollowersCount(followersData?.length || 0);
+      setFollowingCount(followingData?.length || 0);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading profile:', error);
       toast({
-        title: "Failed to load profile",
-        description: error.message,
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load profile',
+        variant: 'destructive',
       });
-    } finally {
       setLoading(false);
     }
   };
 
-  const getLastStudiedText = (date: string | null) => {
-    if (!date) return 'Never studied';
+  const getLastStudiedText = (date?: string) => {
+    if (!date) return 'Not studied yet';
+    
     const lastDate = new Date(date);
     const today = new Date();
-    const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+    today.setHours(0, 0, 0, 0);
+    lastDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = today.getTime() - lastDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays === 0) return 'Today';
@@ -101,214 +132,271 @@ const Profile = () => {
     return `${diffDays} days ago`;
   };
 
-  const getTimeAgo = (dateStr: string) => {
-    const date = new Date(dateStr);
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffWeeks = Math.floor(diffDays / 7);
-    
-    if (diffDays === 0) return 'today';
-    if (diffDays === 1) return '1d';
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
     if (diffDays < 7) return `${diffDays}d`;
-    if (diffWeeks === 1) return '1w';
-    return `${diffWeeks}w`;
+    return `${Math.floor(diffDays / 7)}w`;
   };
 
-  if (loading || authLoading) {
+  const totalHours = Math.floor((profile?.total_minutes || 0) / 60);
+
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={{ background: '#0E0E0F' }}>
-        <div className="animate-spin">
-          <BookOpen className="h-12 w-12 text-white" />
+      <div className="min-h-screen bg-background pb-24 px-4">
+        <div className="max-w-2xl mx-auto pt-8 space-y-6">
+          <Skeleton className="h-48 w-full rounded-3xl" />
+          <Skeleton className="h-32 w-full rounded-3xl" />
+          <Skeleton className="h-64 w-full rounded-3xl" />
         </div>
       </div>
     );
   }
 
-  if (!profile) return null;
-
   return (
-    <div className="min-h-screen pb-24" style={{ background: '#0E0E0F' }}>
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-background pb-24">
+      <div className="max-w-2xl mx-auto px-4 pt-8 space-y-6 animate-fade-in">
         
-        {/* 1. Header Section */}
-        <div className="flex flex-col items-center px-6 pt-8 pb-4">
-          {/* Profile Image */}
-          <div 
-            className="w-[100px] h-[100px] rounded-full overflow-hidden mb-3"
-            style={{
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-            }}
-          >
-            {profile.photo_url ? (
-              <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full object-cover" />
-            ) : (
-              <div 
-                className="w-full h-full flex items-center justify-center text-3xl font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #8B5CF6 100%)' }}
+        {/* Profile Header */}
+        <div className="bg-card rounded-3xl p-6 glow-primary border border-border">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <Avatar className="w-24 h-24 border-4 border-primary glow-primary">
+              <AvatarImage src={profile?.photo_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'} />
+              <AvatarFallback className="bg-gradient-primary text-2xl">
+                {profile?.display_name?.charAt(0) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{profile?.display_name || 'Student'}</h1>
+              <p className="text-muted-foreground">@{profile?.username || 'student'}</p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 px-4 py-1 bg-gradient-primary rounded-full text-xs font-medium text-white">
+              🎓 College Student
+            </div>
+
+            {/* Social Stats */}
+            <div className="flex gap-6 w-full justify-center py-4">
+              <button 
+                onClick={() => navigate('/buddies')}
+                className="flex flex-col items-center hover-scale"
               >
-                {profile.display_name[0]}
+                <span className="text-2xl font-bold text-gradient-primary">{followersCount}</span>
+                <span className="text-xs text-muted-foreground">Followers</span>
+              </button>
+              
+              <button 
+                onClick={() => navigate('/buddies')}
+                className="flex flex-col items-center hover-scale"
+              >
+                <span className="text-2xl font-bold text-gradient-secondary">{followingCount}</span>
+                <span className="text-xs text-muted-foreground">Following</span>
+              </button>
+              
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-bold text-gradient-accent">{totalHours}h</span>
+                <span className="text-xs text-muted-foreground">Studied</span>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* User Name */}
-          <h1 className="text-white text-[22px] font-semibold mb-3">{profile.display_name}</h1>
-
-          {/* Share Profile Button */}
-          <button 
-            className="w-full h-[42px] flex items-center justify-center gap-2 text-white font-medium rounded-full hover-scale"
-            style={{ background: '#2B2B2F' }}
-          >
-            <Share2 className="w-4 h-4" />
-            <span>Share Profile</span>
-          </button>
-        </div>
-
-        {/* 2. Class Progress Section */}
-        <div className="px-5 pt-0 pb-2 space-y-4">
-          {classes.length === 0 ? (
-            <div 
-              className="text-center py-12 rounded-2xl"
-              style={{ 
-                background: '#1A1A1D',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+            <Button 
+              className="w-full bg-gradient-primary hover:opacity-90 text-white font-medium"
+              onClick={() => {
+                navigator.share?.({
+                  title: 'My Nudge Profile',
+                  text: `Check out my study profile on Nudge! I've studied ${totalHours} hours 📚`,
+                  url: window.location.href,
+                }).catch(() => {
+                  toast({
+                    title: 'Link copied!',
+                    description: 'Profile link copied to clipboard',
+                  });
+                });
               }}
             >
-              <BookOpen className="h-12 w-12 mx-auto mb-3 text-white opacity-50" />
-              <p className="text-white font-medium mb-1">No classes yet</p>
-              <p className="text-white text-sm opacity-60">Add your first class to get started</p>
+              <Share2 className="w-4 h-4 mr-2" />
+              Share Profile
+            </Button>
+          </div>
+        </div>
+
+        {/* My Classes */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2 px-2">
+            📚 My Classes
+          </h2>
+          
+          {classes.length === 0 ? (
+            <div className="bg-card rounded-3xl p-8 text-center border border-border">
+              <BookOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground mb-4">No classes yet</p>
+              <Button onClick={() => navigate('/add-classes')} className="bg-gradient-primary text-white">
+                Add Your First Class
+              </Button>
             </div>
           ) : (
             classes.map((cls) => (
               <div 
-                key={cls.id}
-                onClick={() => navigate(`/class/${cls.id}`)}
-                className="p-5 rounded-2xl cursor-pointer hover-scale"
-                style={{ 
-                  background: '#1A1A1D',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-                }}
+                key={cls.id} 
+                className="bg-card rounded-3xl p-5 border border-border hover-scale cursor-pointer"
               >
-                {/* Title */}
-                <h3 className="text-white text-lg font-semibold mb-2">
-                  {cls.name}
-                </h3>
-
-                {/* Progress Label */}
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white text-sm" style={{ opacity: 0.7 }}>
-                    Progress: {cls.progress_percentage}%
-                  </span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-foreground">{cls.name}</h3>
+                    {cls.title && (
+                      <p className="text-sm text-muted-foreground">{cls.title}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 bg-gradient-primary px-3 py-1 rounded-full text-xs font-medium text-white">
+                    🔥 {cls.streak}-day
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div 
-                  className="h-[10px] rounded-lg overflow-hidden mb-3"
-                  style={{ background: '#2A2A2F' }}
-                >
-                  <div 
-                    className="h-full transition-all duration-500"
-                    style={{ 
-                      width: `${cls.progress_percentage}%`,
-                      background: 'linear-gradient(90deg, #14B8A6 0%, #8B5CF6 100%)'
-                    }}
-                  />
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-bold text-neon-teal">{cls.progress_percentage}%</span>
+                  </div>
+                  <div className="h-3 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-progress transition-all duration-500"
+                      style={{ width: `${cls.progress_percentage}%` }}
+                    />
+                  </div>
                 </div>
 
-                {/* Streak and Last Studied */}
-                <div className="flex items-center justify-between">
-                  {cls.streak > 0 && (
-                    <div className="flex items-center gap-1 text-white text-sm">
-                      <Flame className="w-4 h-4 text-orange-500" />
-                      <span>Streak: {cls.streak} days</span>
-                    </div>
-                  )}
-                  <span className="text-white text-xs ml-auto" style={{ opacity: 0.6 }}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
                     Last studied: {getLastStudiedText(cls.last_studied_date)}
                   </span>
                 </div>
 
-                {/* CTA */}
-                <div className="flex items-center justify-end gap-1 text-white text-sm mt-2" style={{ opacity: 0.8 }}>
-                  <span>Open Class</span>
-                  <ChevronRight className="w-4 h-4" />
+                <div className="flex gap-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => navigate(`/class/${cls.id}`)}
+                  >
+                    View Class
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="flex-1 bg-gradient-neon text-white hover:opacity-90"
+                    onClick={() => navigate(`/gemini-study-plan?classId=${cls.id}`)}
+                  >
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    Ask Gemini
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </div>
 
-        {/* 3. Media Grid Section */}
-        <div className="px-5 pt-5 pb-2">
+        {/* Gemini Integration Section */}
+        <div className="bg-card rounded-3xl p-6 border-2 border-neon-cyan glow-secondary">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-neon flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-foreground mb-1">Gemini Study Brain 🤖✨</h2>
+              <p className="text-sm text-muted-foreground">
+                Powered by Google Gemini · AI that reads your syllabus
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-foreground mb-4">
+            Gemini reads your syllabi, estimates how long each topic will take, and builds a study plan for you.
+          </p>
+
+          {/* AI Metrics */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-background rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-neon-cyan">{Math.floor((profile?.total_minutes || 0) / 60)}h</div>
+              <div className="text-xs text-muted-foreground">This week</div>
+            </div>
+            <div className="bg-background rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-neon-lime">{classes.length}</div>
+              <div className="text-xs text-muted-foreground">Classes</div>
+            </div>
+            <div className="bg-background rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-primary">{classes.reduce((sum, c) => sum + c.streak, 0)}</div>
+              <div className="text-xs text-muted-foreground">Total streaks</div>
+            </div>
+          </div>
+
+          <Button 
+            className="w-full bg-gradient-neon hover:opacity-90 text-white font-medium mb-2"
+            onClick={() => navigate('/gemini-study-plan')}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            View AI Study Plan
+            <ChevronRight className="w-4 h-4 ml-2" />
+          </Button>
+
+          <div className="text-center text-xs text-muted-foreground mt-3">
+            ⚡ Powered by Gemini (syllabus parsing + time estimates + schedule)
+          </div>
+        </div>
+
+        {/* Study Media Grid */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2 px-2">
+            🎞 My Study Moments
+          </h2>
+          
           {posts.length === 0 ? (
-            <div 
-              className="text-center py-12 rounded-2xl"
-              style={{ 
-                background: '#1A1A1D',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-              }}
-            >
-              <BookOpen className="h-12 w-12 mx-auto mb-3 text-white opacity-50" />
-              <p className="text-white font-medium mb-1">No posts yet</p>
-              <p className="text-white text-sm opacity-60">Complete a study session to share!</p>
+            <div className="bg-card rounded-3xl p-8 text-center border border-border">
+              <div className="text-5xl mb-3">📸</div>
+              <p className="text-muted-foreground mb-4">No study posts yet</p>
+              <Button onClick={() => navigate('/nudge-camera')} className="bg-gradient-primary text-white">
+                <Clock className="w-4 h-4 mr-2" />
+                Start Your First Session
+              </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-[10px]">
+            <div className="grid grid-cols-3 gap-2">
               {posts.map((post) => (
-                <div
+                <div 
                   key={post.id}
-                  className="aspect-square rounded-xl overflow-hidden hover-scale cursor-pointer relative"
-                  style={{ 
-                    background: '#1A1A1D',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-                  }}
+                  className="aspect-square rounded-2xl overflow-hidden relative hover-scale cursor-pointer border border-border"
+                  onClick={() => navigate(`/feed`)}
                 >
-                  {post.timelapse_url ? (
-                    <>
-                      <video src={post.timelapse_url} className="w-full h-full object-cover" />
-                      <div className="absolute top-2 right-2">
-                        <PlayCircle className="w-5 h-5 text-white" fill="rgba(255,255,255,0.3)" />
+                  <img 
+                    src={post.photo_url || post.front_photo_url || post.back_photo_url || 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=400'}
+                    alt="Study moment"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <div className="bg-black/70 backdrop-blur-sm px-2 py-1 rounded-full text-xs text-white font-medium">
+                      {formatTimeAgo(post.created_at)}
+                    </div>
+                  </div>
+                  {post.timelapse_url && (
+                    <div className="absolute bottom-2 left-2">
+                      <div className="bg-black/70 backdrop-blur-sm p-1.5 rounded-full">
+                        🎥
                       </div>
-                    </>
-                  ) : post.photo_url ? (
-                    <img src={post.photo_url} alt="Study session" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #8B5CF6 100%)' }}>
-                      <BookOpen className="h-8 w-8 text-white" />
                     </div>
                   )}
-                  
-                  {/* Time Ago Label */}
-                  <div 
-                    className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs text-white font-medium"
-                    style={{ background: 'rgba(0,0,0,0.6)' }}
-                  >
-                    {getTimeAgo(post.created_at)}
-                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-
-        {/* 4. Footer - Current Classes */}
-        {classes.length > 0 && (
-          <div className="px-6 pt-6 pb-8">
-            <h3 className="text-white font-semibold text-sm mb-3 opacity-70">CURRENT CLASSES</h3>
-            <div className="flex flex-wrap gap-2">
-              {classes.map((cls) => (
-                <div 
-                  key={cls.id}
-                  className="px-[14px] py-[10px] rounded-xl text-white text-sm font-medium"
-                  style={{ background: '#2A2A2F' }}
-                >
-                  {cls.name.split(' ')[0]}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     </div>
