@@ -63,9 +63,10 @@ const NudgeCamera = () => {
   const handleSend = () => {
     if (!frontPhoto || !backPhoto) return;
 
-    // Navigate to session setup with photo
-    const photoData = encodeURIComponent(backPhoto);
-    navigate(`/session-setup?photo=${photoData}`);
+    // Navigate to review & post screen with both photos
+    const frontData = encodeURIComponent(frontPhoto);
+    const backData = encodeURIComponent(backPhoto);
+    navigate(`/review-post?front=${frontData}&back=${backData}`);
   };
 
   // Preview mode - both photos captured
