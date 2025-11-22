@@ -103,16 +103,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    // Check for existing session, then auto-login if needed
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSession(session);
         setUser(session.user);
-        setLoading(false);
-      } else {
-        // No session, auto-login
-        autoSignIn();
       }
+      setLoading(false);
+      // Removed auto-login - users must sign in manually
     });
 
     return () => subscription.unsubscribe();

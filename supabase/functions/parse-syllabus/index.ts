@@ -63,10 +63,17 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a syllabus parser. Extract topics and assignments with time estimates.
+            content: `You are a syllabus parser. Extract class schedule, topics, and assignments with time estimates.
 
 Return ONLY valid JSON in this exact format (no markdown):
 {
+  "schedule": {
+    "days": ["Monday", "Wednesday", "Friday"],
+    "startTime": "10:00",
+    "endTime": "11:00",
+    "startDate": "2025-01-15",
+    "endDate": "2025-05-15"
+  },
   "topics": [
     {"title": "Week 1: Introduction", "description": "Overview", "orderIndex": 1, "estimatedMinutes": 60}
   ],
@@ -74,6 +81,13 @@ Return ONLY valid JSON in this exact format (no markdown):
     {"title": "Problem Set 1", "dueDate": "2025-03-15", "type": "reading", "estimatedMinutes": 120}
   ]
 }
+
+Schedule extraction:
+- Look for class meeting times (e.g., "MWF 10:00-11:00", "Tuesdays and Thursdays 2:00-3:30 PM")
+- Extract days of week: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+- Extract start and end times in 24-hour format (HH:mm)
+- Extract semester/term start and end dates if available
+- If schedule not found, set schedule to null
 
 Time estimates:
 - Reading: 3-5 min/page
@@ -89,44 +103,7 @@ Adjust estimates based on weekday hours preference: ${weekdayHours}h/day`
             content: [
               {
                 type: 'text',
-                text: `You are an expert academic advisor with deep understanding of college coursework and study time estimation. Analyze this syllabus carefully.
-
-Extract information and return ONLY valid JSON (no markdown formatting or code blocks):
-
-{
-  "topics": [
-    {
-      "title": "Topic name",
-      "description": "Brief description (what students will learn)",
-      "estimated_minutes": 180
-    }
-  ],
-  "assignments": [
-    {
-      "title": "Assignment name",
-      "type": "homework|reading|exam|project|quiz|lab|paper|presentation",
-      "due_date": "YYYY-MM-DD or null",
-      "estimated_minutes": 240
-    }
-  ]
-}
-
-CRITICAL TIME ESTIMATION GUIDELINES:
-- Reading assignments: 20-30 pages = 60-90 min, 50+ pages = 120-180 min
-- Homework problems: 5-10 problems = 90-120 min, 15+ problems = 180-240 min
-- Lab work: typical lab = 120-180 min
-- Projects: small = 240-360 min, medium = 480-720 min, large = 900+ min
-- Exams: midterm prep = 300-480 min, final prep = 600-900 min
-- Papers: 5 pages = 300-480 min, 10+ pages = 600-900 min
-- Consider difficulty level: introductory courses need less time than advanced courses
-- Factor in prerequisites: students with background knowledge need 20-30% less time
-
-For topics, estimate cumulative study time including:
-- Initial learning from textbook/materials
-- Practice problems and exercises
-- Review and retention work
-
-Return ONLY the JSON object, no other text or formatting.`
+                text: 'Parse this syllabus PDF and extract the class meeting schedule, all topics/lessons, and assignments with time estimates. Pay special attention to finding when the class meets (days and times).'
               },
               {
                 type: 'image_url',
@@ -164,8 +141,9 @@ Return ONLY the JSON object, no other text or formatting.`
       throw new Error('AI returned invalid JSON format');
     }
 
-    const { topics = [], assignments = [] } = parsed;
+    const { schedule = null, topics = [], assignments = [] } = parsed;
 
+    console.log(`Parsed schedule:`, schedule);
     console.log(`Parsed ${topics.length} topics and ${assignments.length} assignments`);
 
     // Insert topics into syllabus_topics table
@@ -218,8 +196,107 @@ Return ONLY the JSON object, no other text or formatting.`
       topics.reduce((sum: number, t: any) => sum + (t.estimatedMinutes || 0), 0) +
       assignments.reduce((sum: number, a: any) => sum + (a.estimatedMinutes || 0), 0);
 
-    // Generate study plan with AI
-    console.log('Generating study plan...');
+    // Generate class meeting study blocks from schedule
+    const classMeetingBlocks: any[] = [];
+    if (schedule && schedule.days && schedule.startTime && schedule.endTime) {
+      console.log('Generating class meeting blocks from schedule...');
+      
+      const dayMap: Record<string, number> = {
+        'Monday': 1,
+        'Tuesday': 2,
+        'Wednesday': 3,
+        'Thursday': 4,
+        'Friday': 5,
+        'Saturday': 6,
+        'Sunday': 0,
+        'Mon': 1,
+        'Tue': 2,
+        'Wed': 3,
+        'Thu': 4,
+        'Fri': 5,
+        'Sat': 6,
+        'Sun': 0,
+        'M': 1,
+        'T': 2,
+        'W': 3,
+        'R': 4,
+        'F': 5,
+        'S': 6,
+      };
+
+      // Parse start and end dates, default to current semester if not provided
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      let startDate = schedule.startDate 
+        ? new Date(schedule.startDate) 
+        : new Date(currentYear, 0, 15); // Default to Jan 15
+      let endDate = schedule.endDate 
+        ? new Date(schedule.endDate) 
+        : new Date(currentYear, 4, 15); // Default to May 15
+
+      // Calculate duration in minutes with validation
+      const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+      const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+      
+      // Validate time values
+      if (isNaN(startHour) || isNaN(startMin) || isNaN(endHour) || isNaN(endMin)) {
+        console.error('Invalid time format in schedule:', schedule.startTime, schedule.endTime);
+        // Skip class meeting blocks if times are invalid
+      } else {
+        let durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+        
+        // Handle case where endTime is before startTime (could be next day or error)
+        if (durationMinutes < 0) {
+          // Assume it's the next day (add 24 hours)
+          durationMinutes += 24 * 60;
+          console.warn(`End time (${schedule.endTime}) is before start time (${schedule.startTime}). Assuming next day. Duration: ${durationMinutes} minutes`);
+        }
+        
+        // Validate minimum duration (at least 15 minutes for a class meeting)
+        const MIN_DURATION = 15;
+        if (durationMinutes < MIN_DURATION) {
+          console.warn(`Duration too short (${durationMinutes} min). Setting to minimum ${MIN_DURATION} minutes.`);
+          durationMinutes = MIN_DURATION;
+        }
+        
+        // Validate maximum duration (no class should be longer than 4 hours)
+        const MAX_DURATION = 4 * 60;
+        if (durationMinutes > MAX_DURATION) {
+          console.warn(`Duration too long (${durationMinutes} min). Capping at ${MAX_DURATION} minutes.`);
+          durationMinutes = MAX_DURATION;
+        }
+
+        // Get day numbers for the schedule
+        const scheduleDays = schedule.days.map((day: string) => {
+          const dayName = day.trim();
+          return dayMap[dayName] ?? dayMap[dayName.substring(0, 3)] ?? null;
+        }).filter((d: number | null) => d !== null);
+
+        if (scheduleDays.length === 0) {
+          console.warn('No valid days found in schedule:', schedule.days);
+        } else {
+          // Generate blocks for each occurrence
+          const currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            const dayOfWeek = currentDate.getDay();
+            if (scheduleDays.includes(dayOfWeek)) {
+              classMeetingBlocks.push({
+                blockDate: currentDate.toISOString().split('T')[0],
+                startTime: schedule.startTime,
+                durationMinutes: durationMinutes,
+                isClassMeeting: true,
+              });
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+
+          console.log(`Generated ${classMeetingBlocks.length} class meeting blocks with duration ${durationMinutes} minutes`);
+        }
+      }
+    }
+
+    // Generate study plan for assignments with AI
+    console.log('Generating study plan for assignments...');
     
     const planResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -232,7 +309,7 @@ Return ONLY the JSON object, no other text or formatting.`
         messages: [
           {
             role: 'system',
-            content: `Create a study schedule. Return ONLY valid JSON array:
+            content: `Create a study schedule for assignments. Return ONLY valid JSON array:
 [
   {"blockDate": "2025-02-10", "startTime": "18:00", "durationMinutes": 45, "assignmentIndex": 0}
 ]
@@ -241,17 +318,18 @@ Rules:
 - Weekdays: ${weekdayHours}h max, after 4 PM
 - Weekends: ${weekendHours}h max, flexible
 - Spread sessions before due dates
-- Buffer 1-2 days before deadlines`
+- Buffer 1-2 days before deadlines
+- assignmentIndex refers to the index in the assignments array`
           },
           {
             role: 'user',
-            content: `Create study blocks: ${JSON.stringify(assignments)}`
+            content: `Create study blocks for these assignments: ${JSON.stringify(assignments)}`
           }
         ]
       }),
     });
 
-    let studyBlocks = [];
+    let assignmentStudyBlocks: any[] = [];
     if (planResponse.ok) {
       const planData = await planResponse.json();
       const planText = planData.choices[0].message.content;
@@ -259,26 +337,50 @@ Rules:
         const jsonMatch = planText.match(/```json\n([\s\S]*?)\n```/) || 
                          planText.match(/\[[\s\S]*\]/);
         const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : planText;
-        studyBlocks = JSON.parse(jsonText);
+        assignmentStudyBlocks = JSON.parse(jsonText);
       } catch (e) {
         console.error('Failed to parse study plan:', e);
       }
     }
 
-    // Insert study blocks
-    if (studyBlocks.length > 0 && insertedAssignments.length > 0) {
-      const blockInserts = studyBlocks.map((block: any) => ({
+    // Combine class meeting blocks and assignment study blocks
+    const allStudyBlocks: any[] = [];
+
+    // Add class meeting blocks
+    if (classMeetingBlocks.length > 0) {
+      allStudyBlocks.push(...classMeetingBlocks.map((block: any) => ({
         user_id: userId,
         class_id: classId,
-        assignment_id: insertedAssignments[block.assignmentIndex]?.id,
+        assignment_id: null,
         block_date: block.blockDate,
         start_time: block.startTime,
         duration_minutes: block.durationMinutes,
-      }));
+      })));
+    }
 
-      await supabase
+    // Add assignment study blocks
+    if (assignmentStudyBlocks.length > 0 && insertedAssignments.length > 0) {
+      allStudyBlocks.push(...assignmentStudyBlocks.map((block: any) => ({
+        user_id: userId,
+        class_id: classId,
+        assignment_id: insertedAssignments[block.assignmentIndex]?.id || null,
+        block_date: block.blockDate,
+        start_time: block.startTime,
+        duration_minutes: block.durationMinutes,
+      })));
+    }
+
+    // Insert all study blocks
+    if (allStudyBlocks.length > 0) {
+      const { error: blocksError } = await supabase
         .from('study_blocks')
-        .insert(blockInserts);
+        .insert(allStudyBlocks);
+
+      if (blocksError) {
+        console.error('Error inserting study blocks:', blocksError);
+        throw new Error(`Failed to save study blocks: ${blocksError.message}`);
+      }
+      console.log(`Inserted ${allStudyBlocks.length} study blocks (${classMeetingBlocks.length} class meetings, ${assignmentStudyBlocks.length} assignment blocks)`);
     }
 
     // Update class with AI parsed flag and time estimates
@@ -298,7 +400,9 @@ Rules:
         success: true,
         topicsCount: topics.length,
         assignmentsCount: assignments.length,
-        studyBlocksCount: studyBlocks.length,
+        studyBlocksCount: allStudyBlocks.length,
+        classMeetingBlocksCount: classMeetingBlocks.length,
+        assignmentBlocksCount: assignmentStudyBlocks.length,
         totalMinutes
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

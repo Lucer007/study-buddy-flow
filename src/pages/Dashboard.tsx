@@ -126,6 +126,7 @@ const Dashboard = () => {
           .from('classes')
           .select('name')
           .eq('id', block.class_id)
+          .eq('user_id', user.id)
           .single();
 
         // Get assignment info if exists
@@ -135,6 +136,7 @@ const Dashboard = () => {
             .from('assignments')
             .select('title')
             .eq('id', block.assignment_id)
+            .eq('user_id', user.id)
             .single();
           assignmentTitle = assignmentData?.title;
         }

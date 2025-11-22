@@ -1,16 +1,27 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Splash = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigate('/account-setup');
-    }, 2000);
+    // If user is already logged in, go to dashboard
+    if (!loading && user) {
+      navigate('/dashboard');
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, [navigate]);
+    // Otherwise, show splash then go to account setup
+    if (!loading && !user) {
+      const timer = setTimeout(() => {
+        navigate('/account-setup');
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [navigate, user, loading]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background relative overflow-hidden">
