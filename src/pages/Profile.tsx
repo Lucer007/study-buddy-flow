@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Flame, Clock, BookOpen, Users, Share2, Library, Trophy, TrendingUp } from 'lucide-react';
+import { BookOpen, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,7 +35,6 @@ const Profile = () => {
   const [studyBuddiesCount, setStudyBuddiesCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -124,9 +120,9 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="animate-spin text-primary">
-          <Flame className="h-12 w-12" />
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="animate-spin text-white">
+          <BookOpen className="h-12 w-12" />
         </div>
       </div>
     );
@@ -134,236 +130,208 @@ const Profile = () => {
 
   if (!profile) return null;
 
-  const filteredPosts = selectedFilter === 'all' 
-    ? posts 
-    : posts.filter(post => post.class_id === selectedFilter);
-
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+    <div className="min-h-screen bg-black pb-20">
+      <div className="max-w-2xl mx-auto px-5 pt-10 space-y-5">
         
         {/* 1. Profile Photo + Rank Badge */}
-        <div className="flex flex-col items-center space-y-3">
-          <div className="relative">
-            <div className="w-32 h-32 rounded-full bg-gradient-primary p-1 glow-primary animate-float">
-              <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-6xl font-black">
+        <div className="flex flex-col items-center">
+          <div className="relative mb-3">
+            <div 
+              className="w-[120px] h-[120px] rounded-full p-[3px] animate-float"
+              style={{
+                background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+                boxShadow: '0 8px 32px rgba(247, 107, 28, 0.4)'
+              }}
+            >
+              <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-5xl font-black overflow-hidden">
                 {profile.photo_url ? (
-                  <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full rounded-full object-cover" />
+                  <img src={profile.photo_url} alt={profile.display_name} className="w-full h-full object-cover" />
                 ) : (
-                  profile.display_name[0]
+                  <span className="text-white">{profile.display_name[0]}</span>
                 )}
               </div>
             </div>
-            {leaderboardRank && leaderboardRank <= 3 && (
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-gradient-accent rounded-full px-4 py-1.5 flex items-center gap-2 glow-accent">
-                <Trophy className="h-4 w-4 text-accent-foreground" />
-                <span className="text-accent-foreground font-black text-sm">#{leaderboardRank}</span>
-              </div>
-            )}
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 flex items-center justify-center">
+              <Trophy className="w-6 h-6" style={{ color: '#FFD700' }} />
+            </div>
           </div>
 
-          {/* 2. Display Name */}
-          <h1 className="text-4xl font-black text-foreground text-center">{profile.display_name}</h1>
+          {/* 2. Name */}
+          <h1 className="text-[26px] font-semibold text-white text-center mb-5">{profile.display_name}</h1>
         </div>
 
         {/* 3. Streak Card */}
-        <div className="bg-gradient-primary rounded-3xl p-6 glow-primary hover-scale cursor-pointer">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Flame className="h-10 w-10 text-white" />
-              <div>
-                <div className="text-3xl font-black text-white">{profile.streak}-Day Streak</div>
-                <div className="text-white/80 font-medium">Keep it going!</div>
-              </div>
+        <div 
+          className="h-[54px] rounded-[28px] px-6 flex items-center justify-between hover-scale cursor-pointer"
+          style={{
+            background: 'linear-gradient(90deg, #3A1C00 0%, #1A0F00 100%)'
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔥</span>
+            <div>
+              <div className="text-white font-bold text-base leading-tight">{profile.streak} Day Streak</div>
+              <div className="text-[#C9C9C9] text-xs">Keep it going!</div>
             </div>
-            <div className="text-6xl">🔥</div>
           </div>
         </div>
 
-        {/* 4. Weekly Study Goal Progress */}
-        <div className="bg-card border-2 border-border rounded-3xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl">🎯</div>
-              <div>
-                <div className="text-lg font-black text-foreground">Weekly Goal</div>
-                <div className="text-sm text-muted-foreground font-medium">
-                  {weeklyStudiedHours} / {weeklyGoalHours} hours
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-black text-gradient-secondary">
-                {Math.round((weeklyStudiedHours / weeklyGoalHours) * 100)}%
-              </div>
+        {/* 4. Weekly Study Goal Bar */}
+        <div 
+          className="h-[66px] rounded-[20px] p-4 flex items-center justify-between"
+          style={{ background: '#141414' }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎯</span>
+            <div>
+              <div className="text-white font-medium text-sm leading-tight">Goal: {weeklyGoalHours}h/week</div>
+              <div className="text-[#888888] text-xs">{weeklyStudiedHours} of {weeklyGoalHours} done</div>
             </div>
           </div>
-          <Progress value={(weeklyStudiedHours / weeklyGoalHours) * 100} className="h-3" />
-        </div>
-
-        {/* 5. Study Activity Categories (Chips) */}
-        <div className="space-y-3">
-          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Study Type</div>
-          <div className="flex flex-wrap gap-2">
-            <Badge 
-              variant={selectedFilter === 'all' ? 'default' : 'outline'}
-              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
-              onClick={() => setSelectedFilter('all')}
-            >
-              📚 All
-            </Badge>
-            <Badge 
-              variant="outline"
-              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
-            >
-              📝 Homework
-            </Badge>
-            <Badge 
-              variant="outline"
-              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
-            >
-              💻 Coding
-            </Badge>
-            <Badge 
-              variant="outline"
-              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
-            >
-              📖 Reading
-            </Badge>
-            <Badge 
-              variant="outline"
-              className="rounded-full px-4 py-2 cursor-pointer hover-scale"
-            >
-              🧠 Review
-            </Badge>
+          <div className="flex gap-2">
+            {[...Array(4)].map((_, i) => (
+              <div 
+                key={i}
+                className="w-3 h-3 rounded-full"
+                style={{
+                  background: i < Math.ceil((weeklyStudiedHours / weeklyGoalHours) * 4) 
+                    ? 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)' 
+                    : '#333333',
+                  boxShadow: i < Math.ceil((weeklyStudiedHours / weeklyGoalHours) * 4) 
+                    ? '0 0 8px rgba(247, 107, 28, 0.6)' 
+                    : 'none'
+                }}
+              />
+            ))}
           </div>
         </div>
 
-        {/* 6. Leaderboard Placement */}
+        {/* 5. Leaderboard Section */}
         {leaderboardRank && (
-          <div 
-            className="bg-card border-2 border-border rounded-3xl p-6 text-center hover-scale cursor-pointer"
-            onClick={() => navigate('/leaderboard')}
-          >
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <TrendingUp className="h-5 w-5 text-accent" />
-              <div className="text-2xl font-black text-gradient-accent">#{leaderboardRank} Among Friends</div>
-            </div>
-            <div className="text-sm text-muted-foreground font-medium">View Leaderboard →</div>
+          <div className="text-center py-4">
+            <div className="text-white font-semibold text-lg mb-1">#{leaderboardRank} Among Friends</div>
+            <button 
+              onClick={() => navigate('/leaderboard')}
+              className="text-[#6EA8FF] text-sm hover:underline"
+            >
+              View Leaderboard →
+            </button>
           </div>
         )}
 
-        {/* 7. Stats Row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
-            <div className="text-3xl font-black text-gradient-primary mb-1">
-              {Math.floor(profile.total_minutes / 60)}h
+        {/* 6. Stats Row */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="text-center">
+            <div className="text-white font-semibold text-xl mb-1">
+              {Math.floor(profile.total_minutes / 60)}
             </div>
-            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+            <div className="text-[#888888] text-xs">
               Hours Studied
             </div>
           </div>
 
-          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
-            <div className="text-3xl font-black text-gradient-secondary mb-1">
+          <div className="text-center">
+            <div className="text-white font-semibold text-xl mb-1">
               {studyBuddiesCount}
             </div>
-            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+            <div className="text-[#888888] text-xs">
               Study Buddies
             </div>
           </div>
 
-          <div className="bg-card border-2 border-border rounded-3xl p-5 text-center">
-            <div className="text-3xl font-black text-gradient-accent mb-1">
+          <div className="text-center">
+            <div className="text-white font-semibold text-xl mb-1">
               {followingCount}
             </div>
-            <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+            <div className="text-[#888888] text-xs">
               Following
             </div>
           </div>
         </div>
 
-        {/* 8. Share Profile Button */}
-        <Button 
-          className="w-full rounded-full py-6 text-lg font-black hover-scale"
-          variant="outline"
-        >
-          <Share2 className="h-5 w-5 mr-2" />
-          Share Profile
-        </Button>
+        {/* 7. Share Profile Button */}
+        <div className="flex justify-center">
+          <button 
+            className="h-[48px] rounded-[26px] px-8 text-white font-semibold text-base hover-scale"
+            style={{ 
+              background: '#1C1C1C',
+              width: '85%'
+            }}
+          >
+            Share Profile
+          </button>
+        </div>
 
-        {/* 9. Study Library Box */}
-        <div className="bg-card border-2 border-border rounded-3xl p-6 hover-scale cursor-pointer">
+        {/* 8. Study Library Card */}
+        <div 
+          className="rounded-[20px] p-[18px] hover-scale cursor-pointer"
+          style={{ background: '#141414' }}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Library className="h-8 w-8 text-primary" />
+              <span className="text-2xl">📂</span>
               <div>
-                <div className="text-xl font-black text-foreground">My Study Library</div>
-                <div className="text-sm text-muted-foreground font-medium">
-                  Your notes, assignments & AI guides
-                </div>
+                <div className="text-white font-semibold text-base leading-tight">My Study Library</div>
+                <div className="text-[#888888] text-xs mt-1">Your notes, assignments & AI guides</div>
               </div>
             </div>
-            <div className="text-2xl">→</div>
+            <div className="text-white text-xl">→</div>
           </div>
         </div>
 
-        {/* 10. Media Grid */}
-        <div className="space-y-4">
-          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Study Content</div>
-          {filteredPosts.length === 0 ? (
-            <div className="text-center py-16 space-y-4 bg-card border-2 border-border rounded-3xl">
-              <BookOpen className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
-              <p className="text-lg text-muted-foreground font-medium">No Nudge posts yet</p>
-              <p className="text-sm text-muted-foreground">Complete a study session to post!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {filteredPosts.map((post) => (
-                <div
-                  key={post.id}
-                  className="aspect-square bg-card border-2 border-border rounded-2xl overflow-hidden hover-scale cursor-pointer group relative"
-                >
-                  {post.timelapse_url ? (
-                    <div className="relative w-full h-full">
-                      <video src={post.timelapse_url} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                        <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1 text-xs text-white font-bold">
-                          {Math.floor(post.minutes_studied)}m
-                        </div>
-                      </div>
+        {/* 9. Media Grid */}
+        {posts.length === 0 ? (
+          <div className="text-center py-16 space-y-4 rounded-[20px]" style={{ background: '#141414' }}>
+            <BookOpen className="h-16 w-16 mx-auto text-[#888888] opacity-50" />
+            <p className="text-white font-medium">No Nudge posts yet</p>
+            <p className="text-[#888888] text-sm">Complete a study session to post!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {posts.map((post) => (
+              <div
+                key={post.id}
+                className="aspect-square rounded-[14px] overflow-hidden hover-scale cursor-pointer group relative"
+                style={{ background: '#141414' }}
+              >
+                {post.timelapse_url ? (
+                  <div className="relative w-full h-full">
+                    <video src={post.timelapse_url} className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 rounded-xl px-2 py-1 text-white text-xs font-medium" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                      {Math.floor(post.minutes_studied)}m
                     </div>
-                  ) : post.photo_url ? (
-                    <>
-                      <img src={post.photo_url} alt="Nudge" className="w-full h-full object-cover" />
-                      <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1 text-xs text-white font-bold">
-                        {Math.floor(post.minutes_studied)}m
-                      </div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full bg-gradient-primary flex items-center justify-center">
-                      <BookOpen className="h-12 w-12 text-white" />
+                  </div>
+                ) : post.photo_url ? (
+                  <>
+                    <img src={post.photo_url} alt="Nudge" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 rounded-xl px-2 py-1 text-white text-xs font-medium" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                      {Math.floor(post.minutes_studied)}m
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)' }}>
+                    <BookOpen className="h-12 w-12 text-white" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
-        {/* 11. Footer - Current Classes ONLY */}
+        {/* 10. Footer - Current Classes ONLY */}
         {classes.length > 0 && (
-          <div className="space-y-4 pt-8 border-t-2 border-border">
-            <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Current Classes</div>
+          <div className="pt-5 pb-8">
+            <div className="text-white font-bold text-lg mb-2.5">📚 Current Classes</div>
             <div className="flex flex-wrap gap-2">
               {classes.map((cls) => (
-                <Badge 
+                <div 
                   key={cls.id}
-                  variant="outline"
-                  className="rounded-full px-4 py-2 text-sm font-bold hover-scale cursor-pointer"
+                  className="rounded-[18px] px-[14px] py-2 text-white text-sm hover-scale cursor-pointer"
+                  style={{ background: '#1B1B1B' }}
                 >
-                  📚 {cls.name}
-                </Badge>
+                  {cls.name}
+                </div>
               ))}
             </div>
           </div>
