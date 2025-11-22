@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Camera, User } from 'lucide-react';
+import { Home, Camera, User, Calendar } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -16,7 +16,7 @@ const BottomNav = () => {
         {/* Home */}
         <NavLink
           to="/dashboard"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[80px] transition-colors ${
+          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[70px] transition-colors ${
             isActive ? 'text-white' : 'text-[#888888]'
           }`}
         >
@@ -24,6 +24,21 @@ const BottomNav = () => {
             <>
               <Home className={`w-7 h-7 ${isActive ? 'fill-white' : ''}`} />
               <span className="text-xs font-medium">Home</span>
+            </>
+          )}
+        </NavLink>
+
+        {/* Calendar */}
+        <NavLink
+          to="/calendar"
+          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[70px] transition-colors ${
+            isActive ? 'text-white' : 'text-[#888888]'
+          }`}
+        >
+          {({ isActive }) => (
+            <>
+              <Calendar className={`w-7 h-7 ${isActive ? 'fill-white' : ''}`} />
+              <span className="text-xs font-medium">Calendar</span>
             </>
           )}
         </NavLink>
@@ -47,7 +62,7 @@ const BottomNav = () => {
         {/* Profile */}
         <NavLink
           to="/profile"
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[80px] transition-colors ${
+          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 min-w-[70px] transition-colors ${
             isActive ? 'text-white' : 'text-[#888888]'
           }`}
         >

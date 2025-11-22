@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar as CalendarIcon, Clock, BookOpen, List, Grid3x3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, BookOpen, List, Grid3x3, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, isSameDay, parseISO, addDays, startOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 import PinkyPromiseDialog from '@/components/PinkyPromiseDialog';
+import ICAL from 'ical.js';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface StudyBlock {
   id: string;
@@ -36,6 +39,9 @@ const CalendarPage = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedBlock, setSelectedBlock] = useState<StudyBlock | null>(null);
   const [showPromiseDialog, setShowPromiseDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const loadPinkyPromises = async () => {
@@ -89,6 +95,140 @@ const CalendarPage = () => {
     loadStudyBlocks();
     loadPinkyPromises();
   }, [loadStudyBlocks]);
+
+  const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.ics')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a .ics file from Canvas, Blackboard, Google Calendar, or Apple Calendar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Read file content
+      const fileContent = await file.text();
+      
+      // Parse ICS file
+      const jcalData = ICAL.parse(fileContent);
+      const comp = new ICAL.Component(jcalData);
+      const events = comp.getAllSubcomponents('vevent');
+
+      if (events.length === 0) {
+        throw new Error('No events found in calendar file');
+      }
+
+      // Process events and create study blocks
+      const classMap = new Map<string, string>(); // Map class names to class IDs
+      const studyBlocksToInsert: Array<{
+        user_id: string;
+        class_id: string;
+        block_date: string;
+        start_time: string | null;
+        duration_minutes: number;
+      }> = [];
+
+      for (const event of events) {
+        const vevent = new ICAL.Event(event);
+        const summary = vevent.summary || 'Untitled Event';
+        const startDate = vevent.startDate.toJSDate();
+        const endDate = vevent.endDate?.toJSDate();
+        
+        // Calculate duration in minutes
+        const durationMinutes = endDate 
+          ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60))
+          : 60; // Default to 60 minutes if no end time
+
+        // Extract class name from summary (remove common prefixes)
+        const className = summary
+          .replace(/^(Assignment|Homework|Quiz|Exam|Lab|Lecture|Discussion|Reading):\s*/i, '')
+          .replace(/\s*-\s*.*$/, '') // Remove suffixes after dash
+          .trim() || 'Imported Class';
+
+        // Get or create class
+        let classId = classMap.get(className);
+        if (!classId) {
+          // Check if class exists
+          const { data: existingClass } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('name', className)
+            .single();
+
+          if (existingClass) {
+            classId = existingClass.id;
+          } else {
+            // Create new class
+            const { data: newClass, error: classError } = await supabase
+              .from('classes')
+              .insert({
+                user_id: user.id,
+                name: className,
+              })
+              .select('id')
+              .single();
+
+            if (classError) throw classError;
+            classId = newClass.id;
+          }
+          classMap.set(className, classId);
+        }
+
+        // Format date and time
+        const blockDate = format(startDate, 'yyyy-MM-dd');
+        const startTime = format(startDate, 'HH:mm');
+
+        studyBlocksToInsert.push({
+          user_id: user.id,
+          class_id: classId,
+          block_date: blockDate,
+          start_time: startTime,
+          duration_minutes: durationMinutes,
+        });
+      }
+
+      // Insert all study blocks
+      if (studyBlocksToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('study_blocks')
+          .insert(studyBlocksToInsert);
+
+        if (insertError) throw insertError;
+
+        toast({
+          title: "Calendar imported! ✨",
+          description: `Successfully imported ${studyBlocksToInsert.length} events from your calendar`,
+        });
+
+        // Reload study blocks
+        await loadStudyBlocks();
+        setShowImportDialog(false);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      toast({
+        title: "Import failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   // Group blocks by date
   const groupedBlocks = studyBlocks.reduce((acc, block) => {
@@ -209,6 +349,13 @@ const CalendarPage = () => {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-white text-2xl font-bold">Calendar</h1>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImportDialog(true)}
+                className="p-2 rounded-lg transition-colors text-[#888888] hover:text-white hover:bg-[#1C1C1C]"
+                title="Import calendar"
+              >
+                <Upload className="w-5 h-5" />
+              </button>
               <button
                 onClick={() => setViewMode('month')}
                 className={cn(
@@ -696,6 +843,55 @@ const CalendarPage = () => {
           </div>
         )}
       </div>
+
+      {/* Import Calendar Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="bg-[#141414] border-[#1C1C1C] text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl font-bold">Import Calendar</DialogTitle>
+            <DialogDescription className="text-[#888888]">
+              Import your calendar from Canvas, Blackboard, Google Calendar, or Apple Calendar
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <p className="text-sm text-[#888888]">
+                Upload a .ics file exported from:
+              </p>
+              <ul className="text-sm text-[#888888] list-disc list-inside space-y-1 ml-2">
+                <li>Canvas: Settings → Calendar → Export Calendar</li>
+                <li>Blackboard: Calendar → Export Calendar</li>
+                <li>Google Calendar: Settings → Export</li>
+                <li>Apple Calendar: File → Export → Export...</li>
+              </ul>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".ics"
+              onChange={handleImportCalendar}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              className="w-full h-12 bg-gradient-to-r from-[#FAD961] to-[#F76B1C] hover:opacity-90 text-white font-semibold"
+            >
+              {isImporting ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Importing...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Upload className="w-5 h-5" />
+                  <span>Choose .ics File</span>
+                </div>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
