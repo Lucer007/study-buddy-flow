@@ -32,14 +32,12 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError.message}`);
     }
 
-    // Convert PDF to text using a simple extraction
-    // For demo purposes, we'll send the filename and let AI work with that
-    // In production, you'd use a proper PDF parser like pdf-parse
-    const fileName = syllabusUrl.split('/').pop() || 'syllabus.pdf';
+    // Convert PDF to base64 for Gemini vision
+    const arrayBuffer = await fileData.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     
-    console.log('Calling AI to extract assignments...');
+    console.log('Calling Lovable AI with Gemini vision to parse syllabus...');
 
-    // Call Lovable AI to extract assignments
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
@@ -56,24 +54,43 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert at extracting course assignments from syllabi. Analyze the syllabus and extract all assignments, quizzes, exams, readings, and projects. Return a JSON array with this structure:
-[
-  {
-    "title": "Assignment name",
-    "type": "reading|quiz|exam|project|lab",
-    "dueDate": "2025-02-15" (YYYY-MM-DD format, estimate reasonable dates 2-8 weeks from now),
-    "estimatedMinutes": 45 (realistic estimate: reading 30-60, quiz 30-90, exam 90-180, project 180-360),
-    "description": "Brief description of the assignment"
-  }
-]
+            content: `You are a syllabus parser. Extract topics and assignments with time estimates.
 
-Generate 3-5 realistic assignments even from limited information. Use common academic patterns.`
+Return ONLY valid JSON in this exact format (no markdown):
+{
+  "topics": [
+    {"title": "Week 1: Introduction", "description": "Overview", "orderIndex": 1, "estimatedMinutes": 60}
+  ],
+  "assignments": [
+    {"title": "Problem Set 1", "dueDate": "2025-03-15", "type": "reading", "estimatedMinutes": 120}
+  ]
+}
+
+Time estimates:
+- Reading: 3-5 min/page
+- Homework: 90-180 min
+- Project: 300-600 min
+- Exam prep: 180-360 min
+
+Assignment types: "reading", "hw", "project", "exam"
+Adjust estimates based on weekday hours preference: ${weekdayHours}h/day`
           },
           {
             role: 'user',
-            content: `Extract assignments from this syllabus file: ${fileName}. Create a realistic course schedule with assignments spread across the semester.`
+            content: [
+              {
+                type: 'text',
+                text: 'Parse this syllabus PDF and extract all topics/lessons and assignments with time estimates.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64}`
+                }
+              }
+            ]
           }
-        ],
+        ]
       }),
     });
 
@@ -84,52 +101,78 @@ Generate 3-5 realistic assignments even from limited information. Use common aca
     }
 
     const aiData = await aiResponse.json();
-    const assignmentsText = aiData.choices[0].message.content;
+    const contentText = aiData.choices[0].message.content;
     
-    console.log('AI response:', assignmentsText);
+    console.log('AI response:', contentText);
 
     // Parse the AI response
-    let assignments;
+    let parsed;
     try {
       // Extract JSON from markdown code blocks if present
-      const jsonMatch = assignmentsText.match(/```json\n([\s\S]*?)\n```/) || 
-                       assignmentsText.match(/\[[\s\S]*\]/);
-      const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : assignmentsText;
-      assignments = JSON.parse(jsonText);
+      const jsonMatch = contentText.match(/```json\n([\s\S]*?)\n```/) || 
+                       contentText.match(/\{[\s\S]*\}/);
+      const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : contentText;
+      parsed = JSON.parse(jsonText);
     } catch (e) {
       console.error('Failed to parse AI response:', e);
-      // Fallback to mock data
-      assignments = [
-        { title: 'Reading 1', type: 'reading', dueDate: '2025-02-12', estimatedMinutes: 45, description: 'Chapter 1-3' },
-        { title: 'Quiz 1', type: 'quiz', dueDate: '2025-02-19', estimatedMinutes: 60, description: 'Chapters 1-3' },
-        { title: 'Lab Assignment', type: 'lab', dueDate: '2025-02-26', estimatedMinutes: 90, description: 'Lab work' },
-      ];
+      throw new Error('AI returned invalid JSON format');
     }
 
-    // Insert assignments into database
-    const assignmentInserts = assignments.map((a: any) => ({
-      class_id: classId,
-      user_id: userId,
-      title: a.title,
-      type: a.type,
-      due_date: a.dueDate,
-      estimated_minutes: a.estimatedMinutes,
-      description: a.description,
-    }));
+    const { topics = [], assignments = [] } = parsed;
 
-    const { data: insertedAssignments, error: insertError } = await supabase
-      .from('assignments')
-      .insert(assignmentInserts)
-      .select();
+    console.log(`Parsed ${topics.length} topics and ${assignments.length} assignments`);
 
-    if (insertError) {
-      console.error('Error inserting assignments:', insertError);
-      throw new Error(`Failed to save assignments: ${insertError.message}`);
+    // Insert topics into syllabus_topics table
+    if (topics.length > 0) {
+      const topicInserts = topics.map((t: any) => ({
+        class_id: classId,
+        title: t.title,
+        description: t.description || '',
+        order_index: t.orderIndex || 0,
+        estimated_minutes: t.estimatedMinutes || 60,
+      }));
+
+      const { error: topicsError } = await supabase
+        .from('syllabus_topics')
+        .insert(topicInserts);
+
+      if (topicsError) {
+        console.error('Error inserting topics:', topicsError);
+        throw new Error(`Failed to save topics: ${topicsError.message}`);
+      }
+      console.log('Topics saved:', topics.length);
     }
 
-    console.log('Assignments saved:', insertedAssignments);
+    // Insert assignments into syllabus_assignments table
+    let insertedAssignments = [];
+    if (assignments.length > 0) {
+      const assignmentInserts = assignments.map((a: any) => ({
+        class_id: classId,
+        title: a.title,
+        type: a.type || 'reading',
+        due_date: a.dueDate || null,
+        estimated_minutes: a.estimatedMinutes || 60,
+      }));
 
-    // Generate study plan
+      const { data: insertData, error: assignError } = await supabase
+        .from('syllabus_assignments')
+        .insert(assignmentInserts)
+        .select();
+
+      if (assignError) {
+        console.error('Error inserting assignments:', assignError);
+        throw new Error(`Failed to save assignments: ${assignError.message}`);
+      }
+      insertedAssignments = insertData || [];
+      console.log('Assignments saved:', assignments.length);
+    }
+
+    // Calculate total estimated minutes
+    const totalMinutes = 
+      topics.reduce((sum: number, t: any) => sum + (t.estimatedMinutes || 0), 0) +
+      assignments.reduce((sum: number, a: any) => sum + (a.estimatedMinutes || 0), 0);
+
+    // Generate study plan with AI
     console.log('Generating study plan...');
     
     const planResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -143,88 +186,74 @@ Generate 3-5 realistic assignments even from limited information. Use common aca
         messages: [
           {
             role: 'system',
-            content: `You are a study planning expert. Create a realistic study schedule that spreads study sessions across weekdays and weekends. Return a JSON array:
+            content: `Create a study schedule. Return ONLY valid JSON array:
 [
-  {
-    "blockDate": "2025-02-10" (YYYY-MM-DD),
-    "startTime": "18:00" (HH:MM in 24h format),
-    "durationMinutes": 45,
-    "assignmentIndex": 0
-  }
+  {"blockDate": "2025-02-10", "startTime": "18:00", "durationMinutes": 45, "assignmentIndex": 0}
 ]
 
 Rules:
-- Spread sessions before each due date
-- Weekdays: ${weekdayHours} hours max per day, schedule after 4 PM
-- Weekends: ${weekendHours} hours max per day, flexible timing
-- Break large assignments into multiple sessions
-- Leave 1-2 days buffer before due dates`
+- Weekdays: ${weekdayHours}h max, after 4 PM
+- Weekends: ${weekendHours}h max, flexible
+- Spread sessions before due dates
+- Buffer 1-2 days before deadlines`
           },
           {
             role: 'user',
-            content: `Create study blocks for these assignments: ${JSON.stringify(assignments)}`
+            content: `Create study blocks: ${JSON.stringify(assignments)}`
           }
-        ],
+        ]
       }),
     });
 
-    if (!planResponse.ok) {
-      throw new Error(`Failed to generate study plan: ${planResponse.status}`);
-    }
-
-    const planData = await planResponse.json();
-    const planText = planData.choices[0].message.content;
-    
-    console.log('Study plan response:', planText);
-
-    let studyBlocks;
-    try {
-      const jsonMatch = planText.match(/```json\n([\s\S]*?)\n```/) || 
-                       planText.match(/\[[\s\S]*\]/);
-      const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : planText;
-      studyBlocks = JSON.parse(jsonText);
-    } catch (e) {
-      console.error('Failed to parse study plan:', e);
-      // Fallback plan
-      studyBlocks = [
-        { blockDate: '2025-02-10', startTime: '18:00', durationMinutes: 45, assignmentIndex: 0 },
-        { blockDate: '2025-02-12', startTime: '19:00', durationMinutes: 60, assignmentIndex: 1 },
-        { blockDate: '2025-02-15', startTime: '14:00', durationMinutes: 90, assignmentIndex: 2 },
-      ];
+    let studyBlocks = [];
+    if (planResponse.ok) {
+      const planData = await planResponse.json();
+      const planText = planData.choices[0].message.content;
+      try {
+        const jsonMatch = planText.match(/```json\n([\s\S]*?)\n```/) || 
+                         planText.match(/\[[\s\S]*\]/);
+        const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : planText;
+        studyBlocks = JSON.parse(jsonText);
+      } catch (e) {
+        console.error('Failed to parse study plan:', e);
+      }
     }
 
     // Insert study blocks
-    const blockInserts = studyBlocks.map((block: any) => ({
-      user_id: userId,
-      class_id: classId,
-      assignment_id: insertedAssignments[block.assignmentIndex]?.id,
-      block_date: block.blockDate,
-      start_time: block.startTime,
-      duration_minutes: block.durationMinutes,
-    }));
+    if (studyBlocks.length > 0 && insertedAssignments.length > 0) {
+      const blockInserts = studyBlocks.map((block: any) => ({
+        user_id: userId,
+        class_id: classId,
+        assignment_id: insertedAssignments[block.assignmentIndex]?.id,
+        block_date: block.blockDate,
+        start_time: block.startTime,
+        duration_minutes: block.durationMinutes,
+      }));
 
-    const { error: blockError } = await supabase
-      .from('study_blocks')
-      .insert(blockInserts);
-
-    if (blockError) {
-      console.error('Error inserting study blocks:', blockError);
-      throw new Error(`Failed to save study plan: ${blockError.message}`);
+      await supabase
+        .from('study_blocks')
+        .insert(blockInserts);
     }
 
-    // Mark class as AI parsed
+    // Update class with AI parsed flag and time estimates
     await supabase
       .from('classes')
-      .update({ ai_parsed: true })
+      .update({ 
+        ai_parsed: true,
+        estimated_total_minutes: totalMinutes,
+        estimated_remaining_minutes: totalMinutes
+      })
       .eq('id', classId);
 
     console.log('✅ Syllabus parsing complete');
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        assignments: insertedAssignments,
-        studyBlocksCount: studyBlocks.length 
+        success: true,
+        topicsCount: topics.length,
+        assignmentsCount: assignments.length,
+        studyBlocksCount: studyBlocks.length,
+        totalMinutes
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

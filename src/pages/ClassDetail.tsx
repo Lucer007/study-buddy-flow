@@ -111,10 +111,19 @@ const ClassDetail = () => {
     const file = e.target.files?.[0];
     if (!file || !user || !classId) return;
 
-    if (!file.type.includes('pdf') && !file.type.includes('document')) {
+    if (file.type !== 'application/pdf') {
       toast({
         title: "Invalid file type",
-        description: "Please upload a PDF or Word document",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "PDF must be less than 20MB",
         variant: "destructive",
       });
       return;
@@ -124,17 +133,36 @@ const ClassDetail = () => {
     setUploadProgress(0);
 
     try {
-      const fileName = `${user.id}/${classId}/${Date.now()}-${file.name}`;
-      setUploadProgress(30);
+      const fileName = `${user.id}/${classId}.pdf`;
+      setUploadProgress(20);
 
       const { error: uploadError } = await supabase.storage
         .from('syllabi')
-        .upload(fileName, file);
+        .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
+      setUploadProgress(40);
+
+      // Get storage path for edge function
+      const { data: { publicUrl } } = supabase.storage
+        .from('syllabi')
+        .getPublicUrl(fileName);
+
+      // Update class with syllabus URL
+      await supabase
+        .from('classes')
+        .update({ syllabus_url: publicUrl })
+        .eq('id', classId);
+
       setUploadProgress(50);
 
-      const { error: parseError } = await supabase.functions.invoke('parse-syllabus', {
+      toast({
+        title: "Parsing syllabus...",
+        description: "AI is extracting topics and assignments",
+      });
+
+      // Call edge function to parse with AI
+      const { data: parseData, error: parseError } = await supabase.functions.invoke('parse-syllabus', {
         body: {
           syllabusUrl: fileName,
           classId,
@@ -144,16 +172,25 @@ const ClassDetail = () => {
         },
       });
 
-      if (parseError) throw parseError;
       setUploadProgress(100);
 
-      toast({
-        title: "Success! ✨",
-        description: "Syllabus parsed and study plan created!",
-      });
+      if (parseError) {
+        console.error('Parse error:', parseError);
+        toast({
+          title: "Parsing failed",
+          description: parseError.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success! ✨",
+          description: `Found ${parseData.topicsCount} topics and ${parseData.assignmentsCount} assignments`,
+        });
+      }
 
-      loadClassData();
+      await loadClassData();
     } catch (error: any) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload failed",
         description: error.message,

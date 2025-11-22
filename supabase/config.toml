@@ -1,1 +1,7 @@
 project_id = "jrjfrwraacgecrrsxshy"
+
+[functions.parse-syllabus]
+verify_jwt = true
+
+[functions.chat-tutor]
+verify_jwt = true
