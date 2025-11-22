@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BookOpen, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Profile {
   username: string;
@@ -29,6 +30,7 @@ interface Class {
 }
 
 const Profile = () => {
+  const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -43,13 +45,15 @@ const Profile = () => {
   const weeklyStudiedHours = Math.floor((profile?.total_minutes || 0) / 60);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (!authLoading && user) {
+      loadProfile();
+    }
+  }, [user, authLoading]);
 
   const loadProfile = async () => {
+    if (!user) return;
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
       // Load profile
       const { data: profileData, error: profileError } = await supabase
@@ -118,7 +122,7 @@ const Profile = () => {
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="animate-spin text-white">
