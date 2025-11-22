@@ -184,14 +184,18 @@ const Dashboard = () => {
       // Include own posts
       const allUserIds = [user.id, ...friendIds];
 
-      // Get posts
+      // Get posts - LIMIT to 20 most recent to avoid timeout
       const { data: postsData, error: postsError } = await supabase
         .from('feed_posts')
         .select('*')
         .in('user_id', allUserIds)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      if (postsError) throw postsError;
+      if (postsError) {
+        console.error('Feed posts error:', postsError);
+        throw postsError;
+      }
 
       // Get profiles
       const { data: profiles } = await supabase
