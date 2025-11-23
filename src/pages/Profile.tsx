@@ -62,54 +62,100 @@ const Profile = () => {
     if (!user) return;
 
     try {
-      // Load profile
-      const { data: profileData } = await supabase
+      // Load profile - handle case where profile doesn't exist
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single() to handle missing profiles
 
-      setProfile(profileData);
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error loading profile:', profileError);
+        throw profileError;
+      }
 
-      // Load classes
-      const { data: classesData } = await supabase
+      // If no profile exists, create a default one
+      if (!profileData) {
+        const email = user.email || 'user';
+        const username = email.split('@')[0];
+        const displayName = username.charAt(0).toUpperCase() + username.slice(1);
+        
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            username: username,
+            display_name: displayName,
+            streak: 0,
+            total_minutes: 0,
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          // Continue with null profile rather than crashing
+        } else {
+          setProfile(newProfile);
+        }
+      } else {
+        setProfile(profileData);
+      }
+
+      // Load classes - handle errors gracefully
+      const { data: classesData, error: classesError } = await supabase
         .from('classes')
         .select('*')
         .eq('user_id', user.id)
         .order('progress_percentage', { ascending: false });
 
+      if (classesError) {
+        console.error('Error loading classes:', classesError);
+      }
       setClasses(classesData || []);
 
-      // Load posts
-      const { data: postsData } = await supabase
+      // Load posts - handle errors gracefully
+      const { data: postsData, error: postsError } = await supabase
         .from('feed_posts')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(12);
 
+      if (postsError) {
+        console.error('Error loading posts:', postsError);
+      }
       setPosts(postsData || []);
 
-      // Load followers/following counts
-      const { data: followersData } = await supabase
-        .from('friendships')
-        .select('id')
-        .eq('friend_id', user.id);
+      // Load followers/following counts - handle errors gracefully
+      const [followersResult, followingResult] = await Promise.all([
+        supabase
+          .from('friendships')
+          .select('id')
+          .eq('friend_id', user.id),
+        supabase
+          .from('friendships')
+          .select('id')
+          .eq('user_id', user.id)
+      ]);
 
-      const { data: followingData } = await supabase
-        .from('friendships')
-        .select('id')
-        .eq('user_id', user.id);
+      if (followersResult.error) {
+        console.error('Error loading followers:', followersResult.error);
+      }
+      if (followingResult.error) {
+        console.error('Error loading following:', followingResult.error);
+      }
 
-      setFollowersCount(followersData?.length || 0);
-      setFollowingCount(followingData?.length || 0);
+      setFollowersCount(followersResult.data?.length || 0);
+      setFollowingCount(followingResult.data?.length || 0);
 
       setLoading(false);
     } catch (error) {
       console.error('Error loading profile:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load profile';
       toast({
         title: 'Error',
-        description: 'Failed to load profile',
+        description: errorMessage,
         variant: 'destructive',
       });
       setLoading(false);
@@ -147,6 +193,26 @@ const Profile = () => {
   };
 
   const totalHours = Math.floor((profile?.total_minutes || 0) / 60);
+
+  // Show sign-in prompt if no user
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="text-center space-y-4">
+          <p className="text-white mb-4">Please sign in to view your profile</p>
+          <Button
+            onClick={() => navigate('/login')}
+            className="px-6 py-3 rounded-lg text-white font-semibold hover-scale"
+            style={{
+              background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+            }}
+          >
+            Go to Sign In
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -409,11 +475,12 @@ const Profile = () => {
                   description: "You have been signed out successfully.",
                 });
                 navigate('/');
-              } catch (error: any) {
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Failed to sign out';
                 toast({
                   variant: "destructive",
                   title: "Sign out failed",
-                  description: error.message,
+                  description: errorMessage,
                 });
               }
             }}

@@ -69,6 +69,9 @@ const Dashboard = () => {
     if (user) {
       loadDashboard();
       subscribeToReactions();
+    } else {
+      // If no user, stop loading
+      setLoading(false);
     }
   }, [user]);
 
@@ -396,6 +399,26 @@ const Dashboard = () => {
   const formatTimeAgo = (dateString: string) => {
     return formatDistanceToNow(new Date(dateString), { addSuffix: true });
   };
+
+  // Show loading or redirect if no user
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="text-center space-y-4">
+          <p className="text-white mb-4">Please sign in to view your dashboard</p>
+          <button
+            onClick={() => navigate('/login')}
+            className="px-6 py-3 rounded-lg text-white font-semibold hover-scale"
+            style={{
+              background: 'linear-gradient(135deg, #FAD961 0%, #F76B1C 100%)',
+            }}
+          >
+            Go to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

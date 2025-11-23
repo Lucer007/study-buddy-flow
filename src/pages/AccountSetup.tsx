@@ -55,7 +55,7 @@ const AccountSetup = () => {
           </div>
 
           <Button
-            onClick={handleContinue}
+            onClick={() => navigate('/login')}
             className="w-full h-16 text-lg font-bold bg-secondary hover:bg-secondary/90 transition-all hover-scale glow-secondary rounded-3xl"
             size="lg"
           >
