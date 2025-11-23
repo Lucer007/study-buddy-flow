@@ -110,8 +110,9 @@ const ClassDetail = () => {
         setHasShownCompletion(true);
       }
 
-    } catch (error: any) {
-      toast.error('Failed to load class');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load class';
+      toast.error(errorMessage);
       navigate('/profile');
     } finally {
       setLoading(false);
@@ -160,7 +161,12 @@ const ClassDetail = () => {
 
       toast.info('AI is parsing your syllabus... ⏳');
 
-      const { data: parseData, error: parseError } = await supabase.functions.invoke('parse-syllabus', {
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Parsing timed out after 3 minutes')), 180000);
+      });
+
+      const functionPromise = supabase.functions.invoke('parse-syllabus', {
         body: {
           syllabusUrl: fileName,
           classId,
@@ -170,21 +176,54 @@ const ClassDetail = () => {
         },
       });
 
+      const result = await Promise.race([functionPromise, timeoutPromise]);
+      const { data: parseData, error: parseError } = result as { 
+        data: { 
+          success?: boolean; 
+          error?: string; 
+          topicsCount?: number; 
+          assignmentsCount?: number;
+          studyBlocksCount?: number;
+        } | null; 
+        error: { message?: string } | null 
+      };
+
       setUploadProgress(100);
 
       if (parseError) {
         console.error('Parse error:', parseError);
-        toast.error('Syllabus parsing failed');
-      } else {
-        // Navigate to classes ready page with summary
+        let errorMessage = parseError.message || 'Syllabus parsing failed. Please check the browser console for details.';
+        
+        // Provide helpful error messages for common issues
+        if (errorMessage.includes('Failed to send a request') || errorMessage.includes('fetch failed')) {
+          errorMessage = 'Edge function not deployed. Please deploy the parse-syllabus function to Supabase. See DEPLOY_EDGE_FUNCTIONS.md for instructions.';
+        } else if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+          errorMessage = 'Edge function not found. Please deploy the parse-syllabus function to Supabase.';
+        }
+        
+        toast.error(errorMessage);
+      } else if (parseData?.error) {
+        // Edge function returned an error in the response
+        console.error('Parse error from function:', parseData.error);
+        toast.error(`Parsing failed: ${parseData.error}`);
+      } else if (parseData?.success) {
+        // Success - navigate to classes ready page
+        const studyBlocksCount = parseData.studyBlocksCount || 0;
+        const classMeetingsCount = parseData.studyBlocksCount || 0;
+        const assignmentBlocksCount = parseData.studyBlocksCount || 0;
+        
+        toast.success(`✨ Found ${parseData.topicsCount} topics, ${parseData.assignmentsCount} assignments. Created ${studyBlocksCount} calendar events (${classMeetingsCount} class meetings, ${assignmentBlocksCount} study sessions)`);
         navigate(`/classes-ready?classId=${classId}`);
         return;
+      } else {
+        toast.error('Parsing completed but no data was returned');
       }
 
       await loadClassData();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Upload failed');
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
       setUploadProgress(0);
